@@ -48,6 +48,23 @@ static void UpdateFPS() {
   }
 }
 
+fvec3 wasdqz(glfw::Window& w) {
+  fvec3 r = {0, 0, 0};
+  if (w.IsKeyPressed(GLFW_KEY_A))
+    r.x -= 1;
+  if (w.IsKeyPressed(GLFW_KEY_D))
+    r.x += 1;
+  if (w.IsKeyPressed(GLFW_KEY_W))
+    r.z -= 1;
+  if (w.IsKeyPressed(GLFW_KEY_S))
+    r.z += 1;
+  if (w.IsKeyPressed(GLFW_KEY_Q))
+    r.y += 1;
+  if (w.IsKeyPressed(GLFW_KEY_Z))
+    r.y -= 1;
+  return r;
+}
+
 int main() {
   try {
     glfwSetErrorCallback(&LogGLFWError);
@@ -64,22 +81,29 @@ int main() {
     window->SetCursorPosCallback(&CursorPosCallback);
 
     Scene scene;
-    scene.AddBody(MakeBox(fvec3(3, 1, 2)).MultiplyMass(2700));
-
-    Camera camera;
-    camera.pos = fvec3(-1, -2, -3);
-    camera.LookAt(fvec3(0, 0, 0));
+    Body* cube = scene.AddBody(MakeBox(fvec3(2, 1, 3)).MultiplyMass(2700));
+    scene.camera.pos = fvec3(-2, 2, 3);
+    scene.camera.LookAt(scene.bodies.begin()->pos);
+    cube->forces.emplace_back(fvec3(-1.5, 0, 0), fvec3(0, 0, 0));
+    cube->forces.emplace_back(fvec3(+1.5, 0, 0), fvec3(0, 0, 0));
 
     Stopwatch frame_stopwatch;
     while (!window->ShouldClose()) {
-      //double frame_time = frame_stopwatch.Restart();
+      double dt = frame_stopwatch.Restart();
       ++frame_idx;
 
       UpdateFPS();
 
-      //scene.PhysicsStep();
+      fvec3 in = wasdqz(*window) * 10000;
+      cube->forces.begin()->second = in;
+      cube->forces.rbegin()->second = -in;
+      if (window->IsKeyPressed(GLFW_KEY_R)) {
+        cube->ang = fvec3(0, 0, 0);
+        cube->rot = fquat(1, 0, 0, 0);
+      }
 
-      scene.Render(camera);
+      scene.PhysicsStep(dt);
+      scene.Render();
       
       window->SwapBuffers();
       glfwPollEvents();

@@ -26,6 +26,7 @@ add_executable(cube
   lib/gl3w/src/gl3w.c
   sim/render.cpp
   sim/bodies.cpp
+  sim/phys.cpp
 )
 
 FIND_LIBRARY(CORE_FOUNDATION_LIBRARY CoreFoundation)

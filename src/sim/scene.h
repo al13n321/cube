@@ -51,13 +51,17 @@ class Body {
 
   // Physical properties.
   float mass = 0;
-  fmat3 inertia = fmat3::Zero(); // inertia tensor
+  fmat3 inv_inertia = fmat3::Zero(); // inverse of inertia tensor
 
   // Physical state.
   fvec3 pos = fvec3(0, 0, 0); // center of mass in world space
   fquat rot = fquat(1, 0, 0, 0); // rotation; object->world space
   fvec3 momentum = fvec3(0, 0, 0); // momentum of c.o.m. in world space
   fvec3 ang = fvec3(0, 0, 0); // angular momentum in world space
+
+  // Forces applied to this body.
+  // `first` is point of application (in world space), `second` is force vector.
+  std::list<std::pair<fvec3, fvec3>> forces;
 
   // How to render it.
   Model model;
@@ -80,13 +84,15 @@ struct Camera {
 class Scene {
  public:
   std::list<Body> bodies;
+  Camera camera;
+  fvec3 light_vec = fvec3(-3, 2, 1).Normalized(); // direction from which the light is coming
 
   Scene();
 
   Body* AddBody();
   Body* AddBody(BodyEdit edit); // puts c.o.m. at origin
 
-  void Render(const Camera& cam);
+  void Render();
   void PhysicsStep(double dt);
 
  private:

@@ -32,8 +32,11 @@ static const char* vertex_shader = R"(
   out vec3 normal;
   out vec3 color;
   void main(){
-    gl_Position.xyz = vert_pos;
-    gl_Position.w = 1.0;
+    vec4 p = model_mat * vec4(vert_pos, 1);
+    pos = p.xyz;
+    normal = vert_normal;
+    color = vert_color;
+    gl_Position =  view_proj_mat * p;
   }
 )";
 
@@ -41,24 +44,34 @@ static const char* fragment_shader = R"(
   #version 330 core
   uniform vec3 light_vec;
   uniform vec3 tint_color;
+  uniform float time;
   in vec3 pos;
   in vec3 normal;
   in vec3 color;
   out vec3 frag_color;
   void main(){
-    frag_color = vec3(.8,.2,.2);
+    //frag_color.xyz = pos;
+    frag_color = color * (.05 + max(0.f, dot(light_vec, normalize(normal)))) + tint_color * sin(time);
   }
 )";
 
 Scene::Scene(): shader_("vert", "frag", vertex_shader, fragment_shader) {}
 
-void Scene::Render(const Camera& cam) {
+void Scene::Render() {
   glClearColor(.5, .5, 1, 0);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glEnable(GL_DEPTH_TEST);
+  glDepthFunc(GL_LESS);
+  //glEnable(GL_CULL_FACE);
   shader_.Use();
-  shader_.SetVec3("light_vec", -cam.pos.Normalized());
+  shader_.SetVec3("light_vec", light_vec);
+  double t = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now().time_since_epoch()).count();
+  t -= floor(t/(3600*24))*(3600*24);
+  shader_.SetScalar("time", t);
+  shader_.SetMat4("view_proj_mat", camera.ViewProjection());
   for (auto& body: bodies) {
     shader_.SetVec3("tint_color", body.model.tint);
+    shader_.SetMat4("model_mat", fmat4::Translation(body.pos) * body.rot.ToMatrix());
     body.model.vao->Draw();
   }
 }
@@ -79,7 +92,7 @@ Body* Scene::AddBody(BodyEdit edit) {
   };
 
   b->mass = edit.mass;
-  b->inertia = edit.inertia;
+  b->inv_inertia = edit.inertia.Inverse();
   b->model.vao.reset(new GL::VertexArray(edit.vertices.size()));
 
   using Attribute = GL::VertexArray::Attribute;

@@ -26,6 +26,10 @@ struct fquat {
   fquat operator+(const fquat &q) const {
     return fquat(a+q.a, b+q.b, c+q.c, d+q.d);
   }
+  fquat& operator+=(const fquat &q) {
+    a += q.a; b += q.b; c += q.c; d += q.d;
+    return *this;
+  }
   fquat operator*(const fquat &q) const {
     return fquat(
       a*q.a - b*q.b - c*q.c - d*q.d,
@@ -82,6 +86,11 @@ struct fquat {
 
   fvec3 Transform(fvec3 v) const {
     fquat q = *this * fquat(0, v.x, v.y, v.z) * this->Inverse();
+    return fvec3(q.b, q.c, q.d);
+  }
+
+  fvec3 Untransform(fvec3 v) const {
+    fquat q = this->Inverse() * fquat(0, v.x, v.y, v.z) * *this;
     return fvec3(q.b, q.c, q.d);
   }
 };
