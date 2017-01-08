@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0.0)
 
-SET (CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Werror -O3")
+SET (CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++11 -g -Wall -Werror")
 
 include_directories(
   ./

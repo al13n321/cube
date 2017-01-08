@@ -33,7 +33,7 @@ BodyEdit MakeBox(fvec3 s) {
   BodyEdit b;
   b.mass = s.x * s.y * s.z;
   b.com = fvec3(0, 0, 0);
-  b.inertia = b.mass/12. * fmat3::Diag(s.y*s.y + s.x*s.x,
+  b.inertia = b.mass/12. * fmat3::Diag(s.y*s.y + s.z*s.z,
                                        s.x*s.x + s.z*s.z,
                                        s.x*s.x + s.y*s.y);
   s /= 2;
