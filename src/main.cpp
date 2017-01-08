@@ -1,6 +1,8 @@
 #include <iostream>
 #include "gl-util/glfw-util.h"
 #include "util/stopwatch.h"
+#include "util/quat.h"
+#include "sim/scene.h"
 using namespace std;
 
 static void LogGLFWError(int code, const char *message) {
@@ -61,6 +63,13 @@ int main() {
     window->SetMouseButtonCallback(&MouseButtonCallback);
     window->SetCursorPosCallback(&CursorPosCallback);
 
+    Scene scene;
+    scene.AddBody(MakeBox(fvec3(3, 1, 2)).MultiplyMass(2700));
+
+    Camera camera;
+    camera.pos = fvec3(-1, -2, -3);
+    camera.LookAt(fvec3(0, 0, 0));
+
     Stopwatch frame_stopwatch;
     while (!window->ShouldClose()) {
       //double frame_time = frame_stopwatch.Restart();
@@ -68,7 +77,9 @@ int main() {
 
       UpdateFPS();
 
-      // Render here.
+      //scene.PhysicsStep();
+
+      scene.Render(camera);
       
       window->SwapBuffers();
       glfwPollEvents();

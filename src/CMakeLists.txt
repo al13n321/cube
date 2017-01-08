@@ -16,11 +16,16 @@ add_executable(cube
   main.cpp
   gl-util/gl-common.cpp
   gl-util/glfw-util.cpp
+  gl-util/shader.cpp
+  gl-util/vertex-array.cpp
+  gl-util/texture2d.cpp
   util/debug.cpp
   util/exceptions.cpp
   util/mat.cpp
   util/stopwatch.cpp
   lib/gl3w/src/gl3w.c
+  sim/render.cpp
+  sim/bodies.cpp
 )
 
 FIND_LIBRARY(CORE_FOUNDATION_LIBRARY CoreFoundation)

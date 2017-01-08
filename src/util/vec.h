@@ -3,6 +3,7 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <algorithm>
+#include <ostream>
 
 template<typename T>
 struct tvec2 {
@@ -24,7 +25,7 @@ struct tvec2 {
 
   T LengthSquare() const { return x*x + y*y; }
 
-  F Length() {
+  F Length() const {
     return sqrt((F)LengthSquare());
   }
 
@@ -66,14 +67,14 @@ struct tvec3 {
   inline ftype Dot(const tvec3<ftype> &v) const { return x*v.x + y*v.y + z*v.z; }
   inline tvec3<ftype> Cross(const tvec3<ftype> &v) const { return tvec3<ftype>(y*v.z - z*v.y, z*v.x - x*v.z, x*v.y - y*v.x); }
 
-  inline ftype LengthSquare() { return Dot(*this); }
-  inline ftype Length() { return sqrt(LengthSquare()); }
+  inline ftype LengthSquare() const { return Dot(*this); }
+  inline ftype Length() const { return sqrt(LengthSquare()); }
 
   inline ftype DistanceSquare(const tvec3<ftype> &b) { return (b - *this).LengthSquare(); }
   inline ftype Distance(const tvec3<ftype> &b) { return (b - *this).Length(); }
 
   inline void NormalizeMe() { *this /= Length(); }
-  inline tvec3<ftype> Normalized() { return *this / Length(); }
+  inline tvec3<ftype> Normalized() const { return *this / Length(); }
 
   inline bool AllGreaterThan(const tvec3<ftype> &v) { return x > v.x && y > v.y && z > v.z; }
   inline bool AllLessThan(const tvec3<ftype> &v) { return x < v.x && y < v.y && z < v.z; }
@@ -122,6 +123,19 @@ struct tvec4 {
   tvec4() {}
   tvec4(ftype x, ftype y, ftype z, ftype w): x(x), y(y), z(z), w(w) {}
 };
+
+template<typename T>
+std::ostream& operator<<(std::ostream& o, const tvec2<T>& v) {
+  return o << '(' << v.x << ',' << v.y << ')';
+}
+template<typename T>
+std::ostream& operator<<(std::ostream& o, const tvec3<T>& v) {
+  return o << '(' << v.x << ',' << v.y << ',' << v.z << ')';
+}
+template<typename T>
+std::ostream& operator<<(std::ostream& o, const tvec4<T>& v) {
+  return o << '(' << v.x << ',' << v.y << ',' << v.z << ',' << v.w << ')';
+}
 
 typedef tvec2<float> fvec2;
 typedef tvec2<double> dvec2;

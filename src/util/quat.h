@@ -5,7 +5,7 @@
 
 // Quaternion.
 struct fquat {
-  float a{0}, b{0}, c{0}, d{0};
+  float a{1}, b{0}, c{0}, d{0};
 
   fquat() {}
   fquat(float a, float b, float c, float d): a(a), b(b), c(c), d(d) {}

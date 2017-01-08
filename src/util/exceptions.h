@@ -30,7 +30,7 @@ EXCEPTION_TYPE(NotImplementedException, std::logic_error);
 ABNORMAL_EXCEPTION(GLException, std::runtime_error);
 EXCEPTION_TYPE(IOException, std::runtime_error);
 EXCEPTION_TYPE(CommandLineArgumentsException, std::runtime_error);
-ABNORMAL_EXCEPTION(AppleException, std::runtime_error);
+EXCEPTION_TYPE(ShaderCompilationException, std::runtime_error);
 
 #undef EXCEPTION_TYPE
 #undef ABNORMAL_EXCEPTION
