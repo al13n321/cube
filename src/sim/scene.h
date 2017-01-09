@@ -101,5 +101,5 @@ class Scene {
 
 // All of unit density. Use `MultiplyMass()` to set density afterwards.
 BodyEdit MakeBox(dvec3 size);
-BodyEdit MakeTorus(double cyl_rad, double mid_rad);
 BodyEdit MakeCylinder(double r, double h);
+BodyEdit MakeTube(double in_r, double out_r, double h); // Difference of two cylinders with common axis.
