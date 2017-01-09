@@ -25,17 +25,17 @@ class BodyEdit {
   };
 
   std::vector<Vertex> vertices;
-  float mass;
-  fvec3 com; // center of mass
-  fmat3 inertia; // around origin
+  double mass;
+  dvec3 com; // center of mass
+  dmat3 inertia; // around origin
 
   BodyEdit& SetColor(fvec3 color);
 
   // Create union of `*this` and `rhs` and put it into `*this`.
   BodyEdit& Merge(const BodyEdit& rhs);
-  BodyEdit& MultiplyMass(float factor);
-  BodyEdit& Translate(fvec3 d);
-  BodyEdit& Rotate(fquat q);
+  BodyEdit& MultiplyMass(double factor);
+  BodyEdit& Translate(dvec3 d);
+  BodyEdit& Rotate(dquat q);
 };
 
 class Model {
@@ -50,18 +50,18 @@ class Body {
   size_t idx; // index in list of all entities
 
   // Physical properties.
-  float mass = 0;
-  fmat3 inv_inertia = fmat3::Zero(); // inverse of inertia tensor
+  double mass = 0;
+  dmat3 inv_inertia = dmat3::Zero(); // inverse of inertia tensor
 
   // Physical state.
-  fvec3 pos = fvec3(0, 0, 0); // center of mass in world space
-  fquat rot = fquat(1, 0, 0, 0); // rotation; object->world space
-  fvec3 momentum = fvec3(0, 0, 0); // momentum of c.o.m. in world space
-  fvec3 ang = fvec3(0, 0, 0); // angular momentum in world space
+  dvec3 pos = dvec3(0, 0, 0); // center of mass in world space
+  dquat rot = dquat(1, 0, 0, 0); // rotation; object->world space
+  dvec3 momentum = dvec3(0, 0, 0); // momentum of c.o.m. in world space
+  dvec3 ang = dvec3(0, 0, 0); // angular momentum in world space
 
   // Forces applied to this body.
   // `first` is point of application (in world space), `second` is force vector.
-  std::list<std::pair<fvec3, fvec3>> forces;
+  std::list<std::pair<dvec3, dvec3>> forces;
 
   // How to render it.
   Model model;
@@ -100,6 +100,6 @@ class Scene {
 };
 
 // All of unit density. Use `MultiplyMass()` to set density afterwards.
-BodyEdit MakeBox(fvec3 size);
-BodyEdit MakeTorus(float cyl_rad, float mid_rad);
-BodyEdit MakeCylinder(float r, float h);
+BodyEdit MakeBox(dvec3 size);
+BodyEdit MakeTorus(double cyl_rad, double mid_rad);
+BodyEdit MakeCylinder(double r, double h);

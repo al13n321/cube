@@ -8,7 +8,7 @@ void Scene::PhysicsStep(double dt) {
       body.ang += f.first.Cross(f.second * dt);
     }
     body.pos += body.momentum * (dt / body.mass);
-    fvec3 av = body.inv_inertia * body.rot.Untransform(body.ang);
+    dvec3 av = body.inv_inertia * body.rot.Untransform(body.ang);
     body.rot += body.rot * fquat(0, av.x, av.y, av.z) * (dt * .5);
     body.rot.NormalizeMe();
   }

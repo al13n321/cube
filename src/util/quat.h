@@ -5,17 +5,20 @@
 #include <ostream>
 
 // Quaternion.
-struct fquat {
-  float a{1}, b{0}, c{0}, d{0};
+template<typename T>
+struct tquat {
+  T a{1}, b{0}, c{0}, d{0};
 
-  fquat() {}
-  fquat(float a, float b, float c, float d): a(a), b(b), c(c), d(d) {}
+  tquat() {}
+  tquat(T a, T b, T c, T d): a(a), b(b), c(c), d(d) {}
+  template<typename T2>
+  tquat(const tquat<T2>& q): a((T)q.a), b((T)q.b), c((T)q.c), d((T)q.d) {}
 
   // Angle in radians. Angle is measured clockwise
   // when viewed with view direction equal to axis.
-  fquat(float angle, fvec3 axis) {
-    float sn = sinf(angle * .5f);
-    float cs = cosf(angle * .5f);
+  tquat(T angle, tvec3<T> axis) {
+    T sn = std::sin(angle * .5f);
+    T cs = std::cos(angle * .5f);
     a = cs;
     axis.NormalizeMe();
     axis *= sn;
@@ -24,39 +27,39 @@ struct fquat {
     d = axis.z;
   }
 
-  fquat operator+(const fquat &q) const {
-    return fquat(a+q.a, b+q.b, c+q.c, d+q.d);
+  tquat operator+(const tquat &q) const {
+    return tquat(a+q.a, b+q.b, c+q.c, d+q.d);
   }
-  fquat& operator+=(const fquat &q) {
+  tquat& operator+=(const tquat &q) {
     a += q.a; b += q.b; c += q.c; d += q.d;
     return *this;
   }
-  fquat operator*(const fquat &q) const {
-    return fquat(
+  tquat operator*(const tquat &q) const {
+    return tquat(
       a*q.a - b*q.b - c*q.c - d*q.d,
       a*q.b + b*q.a + c*q.d - d*q.c,
       a*q.c + c*q.a + d*q.b - b*q.d,
       a*q.d + d*q.a + b*q.c - c*q.b);
   }
-  fquat& operator*=(const fquat &q) {
+  tquat& operator*=(const tquat &q) {
     return *this = *this * q;
   }
-  fquat operator*(float s) const {
-    return fquat(a*s, b*s, c*s, d*s);
+  tquat operator*(T s) const {
+    return tquat(a*s, b*s, c*s, d*s);
   }
-  fquat operator/(float s) const {
-    return fquat(a/s, b/s, c/s, d/s);
+  tquat operator/(T s) const {
+    return tquat(a/s, b/s, c/s, d/s);
   }
 
   void NormalizeMe() {
-    float z = sqrtf(a*a + b*b + c*c + d*d);
+    T z = std::sqrt(a*a + b*b + c*c + d*d);
     a /= z;
     b /= z;
     c /= z;
     d /= z;
   }
-  fquat Normalized() const {
-    fquat res = *this;
+  tquat Normalized() const {
+    tquat res = *this;
     res.NormalizeMe();
     return res;
   }
@@ -77,25 +80,29 @@ struct fquat {
     );
   }
 
-  fquat Conjugate() const {
-    return fquat(a, -b, -c, -d);
+  tquat Conjugate() const {
+    return tquat(a, -b, -c, -d);
   }
 
-  fquat Inverse() const {
+  tquat Inverse() const {
     return Conjugate() / (a*a + b*b + c*c + d*d);
   }
 
-  fvec3 Transform(fvec3 v) const {
-    fquat q = *this * fquat(0, v.x, v.y, v.z) * this->Inverse();
-    return fvec3(q.b, q.c, q.d);
+  tvec3<T> Transform(tvec3<T> v) const {
+    tquat q = *this * tquat(0, v.x, v.y, v.z) * this->Inverse();
+    return tvec3<T>(q.b, q.c, q.d);
   }
 
-  fvec3 Untransform(fvec3 v) const {
-    fquat q = this->Inverse() * fquat(0, v.x, v.y, v.z) * *this;
-    return fvec3(q.b, q.c, q.d);
+  tvec3<T> Untransform(tvec3<T> v) const {
+    tquat q = this->Inverse() * tquat(0, v.x, v.y, v.z) * *this;
+    return tvec3<T>(q.b, q.c, q.d);
   }
 };
 
-inline std::ostream& operator<<(std::ostream& o, const fquat& q){
+template<typename T>
+inline std::ostream& operator<<(std::ostream& o, const tquat<T>& q){
   return o<<'('<<q.a<<','<<q.b<<','<<q.c<<','<<q.d<<')';
 }
+
+using fquat = tquat<float>;
+using dquat = tquat<double>;

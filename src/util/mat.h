@@ -2,27 +2,82 @@
 
 #include "vec.h"
 
-struct fmat3 {
-  float m[3 * 3];
+template<typename T>
+struct tmat3 {
+  T m[3 * 3];
 
-  fmat3() = default;
-  fmat3(float m0, float m1, float m2,
-        float m3, float m4, float m5,
-        float m6, float m7, float m8)
+  tmat3() = default;
+  tmat3(T m0, T m1, T m2,
+        T m3, T m4, T m5,
+        T m6, T m7, T m8)
     : m{m0,m1,m2,m3,m4,m5,m6,m7,m8} {}
+  template<typename T2>
+  inline tmat3(const tmat3<T2> &v) {
+    for (int i = 0; i < 9; ++i)
+      m[i] = (T)v.m[i];
+  }
 
-  fmat3 operator*(const fmat3& b) const;
-  fmat3 operator*(float b) const;
-  fmat3& operator*=(float b);
-  fmat3 Inverse() const;
+  tmat3 operator*(const tmat3& b) const {
+    return tmat3(m[0]*b.m[0] + m[1]*b.m[3] + m[2]*b.m[6],
+                 m[0]*b.m[1] + m[1]*b.m[4] + m[2]*b.m[7],
+                 m[0]*b.m[2] + m[1]*b.m[5] + m[2]*b.m[8],
+                 m[3]*b.m[0] + m[4]*b.m[3] + m[5]*b.m[6],
+                 m[3]*b.m[1] + m[4]*b.m[4] + m[5]*b.m[7],
+                 m[3]*b.m[2] + m[4]*b.m[5] + m[5]*b.m[8],
+                 m[6]*b.m[0] + m[7]*b.m[3] + m[8]*b.m[6],
+                 m[6]*b.m[1] + m[7]*b.m[4] + m[8]*b.m[7],
+                 m[6]*b.m[2] + m[7]*b.m[5] + m[8]*b.m[8]);
+  }
+  tmat3 operator*(T b) const {
+    tmat3 r;
+    for (int i = 0; i < 9; ++i)
+      r.m[i] = m[i] * b;
+    return r;
+  }
+  tmat3& operator*=(T b) {
+    for (int i = 0; i < 9; ++i)
+      m[i] *= b;
+    return *this;
+  }
+  tmat3 Inverse() const {
+    T d = m[0]*m[4]*m[8]-m[0]*m[5]*m[7]-m[1]*m[3]*m[8]+m[1]*m[5]*m[6]+m[2]*m[3]*m[7]-m[2]*m[4]*m[6];
+    return tmat3((m[4]*m[8]-m[5]*m[7])/d,
+                 (m[2]*m[7]-m[1]*m[8])/d,
+                 (m[1]*m[5]-m[2]*m[4])/d,
+                 (m[5]*m[6]-m[3]*m[8])/d,
+                 (m[0]*m[8]-m[2]*m[6])/d,
+                 (m[2]*m[3]-m[0]*m[5])/d,
+                 (m[3]*m[7]-m[4]*m[6])/d,
+                 (m[1]*m[6]-m[0]*m[7])/d,
+                 (m[0]*m[4]-m[1]*m[3])/d);
+  }
 
-  static fmat3 Zero();
-  static fmat3 Identity();
-  static fmat3 Diag(float m0, float m4, float m8);
+  static tmat3 Zero() {
+    tmat3 res;
+    for (int i = 0; i < 9; ++i)
+      res.m[i] = 0;
+    return res;
+  }
+  static tmat3 Identity() {
+    tmat3 res = Zero();
+    res.m[0] = res.m[4] = res.m[8] = 1;
+    return res;
+  }
+  static tmat3 Diag(T m0, T m4, T m8) {
+    return tmat3(m0, 0, 0, 0, m4, 0, 0, 0, m8);
+  }
 };
 
-fmat3 operator*(float b, const fmat3& m);
-fvec3 operator*(const fmat3& m, const fvec3& v);
+template<typename T>
+tmat3<T> operator*(T b, const tmat3<T>& m) {
+  return m*b;
+}
+template<typename T>
+tvec3<T> operator*(const tmat3<T>& m, const tvec3<T>& v) {
+  return tvec3<T>(v.x*m.m[0] + v.y*m.m[1] + v.z*m.m[2],
+                  v.x*m.m[3] + v.y*m.m[4] + v.z*m.m[5],
+                  v.x*m.m[6] + v.y*m.m[7] + v.z*m.m[8]);
+}
 
 struct fmat4 {
   float m[4 * 4];
@@ -74,3 +129,6 @@ struct fmat4 {
   // far_plane must be either zero or strictly greater than near_plane; zero means infinite projection matrix (no far clip plane)
   static fmat4 PerspectiveProjection(float fov, float aspect_ratio, float near_plane, float far_plane);
 };
+
+using fmat3 = tmat3<float>;
+using dmat3 = tmat3<double>;

@@ -45,7 +45,7 @@ struct tvec3 {
   inline tvec3(ftype x, ftype y, ftype z) : x(x), y(y), z(z) {}
 
   template<typename T>
-  inline tvec3<ftype>(const tvec3<T> &v) : x((float)v.x), y((float)v.y), z((float)v.z) {}
+  inline tvec3<ftype>(const tvec3<T> &v) : x((ftype)v.x), y((ftype)v.y), z((ftype)v.z) {}
 
   inline tvec3<ftype> operator - () const { return tvec3<ftype>(-x, -y, -z); }
 
@@ -83,7 +83,7 @@ struct tvec3 {
   inline tvec3<ftype> Min(const tvec3 &v) const { return tvec3(std::min(x, v.x), std::min(y, v.y), std::min(z, v.z)); }
   inline tvec3<ftype> Max(const tvec3 &v) const { return tvec3(std::max(x, v.x), std::max(y, v.y), std::max(z, v.z)); }
   inline tvec3<ftype> Abs() const { return tvec3(std::abs(x), std::abs(y), std::abs(z)); }
-  inline tvec3<ftype> Clamp(float a, float b) {
+  inline tvec3<ftype> Clamp(ftype a, ftype b) {
     return tvec3<ftype>(
       x < a ? a : x > b ? b : x,
       y < a ? a : y > b ? b : y,
