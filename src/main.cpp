@@ -85,12 +85,11 @@ int main() {
     window->SetCursorPosCallback(&CursorPosCallback);
 
     Scene scene;
-    Body* cyl = scene.AddBody(MakeCylinder(.1, .1).MultiplyMass(2700));
+    Body* cyl = scene.AddBody(MakeTube(.15, .2, .05).MultiplyMass(2700));
     scene.camera.pos = fvec3(-.2, .2, .3);
     scene.camera.LookAt(scene.bodies.begin()->pos);
     cyl->forces.emplace_back(dvec3(-1.5, 0, 0), dvec3(0, 0, 0));
     cyl->forces.emplace_back(dvec3(+1.5, 0, 0), dvec3(0, 0, 0));
-    cyl->ang = dvec3(0,-1.24991,-0.758193);
 
     Stopwatch frame_stopwatch;
     while (!window->ShouldClose()) {

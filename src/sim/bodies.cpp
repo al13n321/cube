@@ -56,11 +56,12 @@ BodyEdit MakeBox(dvec3 s) {
   return b;
 }
 
-BodyEdit MakeCylinder(double r, double h) {
+BodyEdit MakeTube(double in_r, double out_r, double h) {
   BodyEdit b;
-  b.mass = M_PI*r*r*h;
+  b.mass = M_PI*(out_r*out_r - in_r*in_r)*h;
   b.com = fvec3(0, 0, 0);
-  b.inertia = b.mass/12 * dmat3::Diag(3*r*r + h*h, 6*r*r, 3*r*r + h*h);
+  double t = in_r*in_r + out_r*out_r;
+  b.inertia = b.mass/12 * dmat3::Diag(3*t + h*h, 6*t, 3*t + h*h);
 
   using Vertex = BodyEdit::Vertex;
   const int sides = 100;
@@ -69,25 +70,52 @@ BodyEdit MakeCylinder(double r, double h) {
     float a2 = M_PI * 2 / sides * (i+.5);
     fvec3 n1(sin(a1), 0, cos(a1));
     fvec3 n2(sin(a2), 0, cos(a2));
-    fvec3 u0(0,  h/2, 0);
-    fvec3 d0(0, -h/2, 0);
-    fvec3 u1 = n1*r + u0;
-    fvec3 u2 = n2*r + u0;
-    fvec3 d1 = n1*r + d0;
-    fvec3 d2 = n2*r + d0;
+    fvec3 nu(0, 1, 0);
+    fvec3 u(0,  h/2, 0);
+    fvec3 o1 = n1*out_r;
+    fvec3 o2 = n2*out_r;
     size_t sz0 = b.vertices.size();
-    b.vertices.push_back(Vertex(d1, n1));
-    b.vertices.push_back(Vertex(d2, n2));
-    b.vertices.push_back(Vertex(u2, n2));
-    b.vertices.push_back(Vertex(u2, n2));
-    b.vertices.push_back(Vertex(u1, n1));
-    b.vertices.push_back(Vertex(d1, n1));
-    b.vertices.push_back(Vertex(u1, {0, 1, 0}));
-    b.vertices.push_back(Vertex(u2, {0, 1, 0}));
-    b.vertices.push_back(Vertex(u0, {0, 1, 0}));
-    b.vertices.push_back(Vertex(d2, {0, -1, 0}));
-    b.vertices.push_back(Vertex(d1, {0, -1, 0}));
-    b.vertices.push_back(Vertex(d0, {0, -1, 0}));
+    // Outer face.
+    b.vertices.push_back(Vertex(o1 - u, n1));
+    b.vertices.push_back(Vertex(o2 - u, n2));
+    b.vertices.push_back(Vertex(o2 + u, n2));
+    b.vertices.push_back(Vertex(o2 + u, n2));
+    b.vertices.push_back(Vertex(o1 + u, n1));
+    b.vertices.push_back(Vertex(o1 - u, n1));
+    if (in_r > 0) { // tube
+      fvec3 i1 = n1*in_r;
+      fvec3 i2 = n2*in_r;
+      // Inner face.
+      b.vertices.push_back(Vertex(i1 + u, n1));
+      b.vertices.push_back(Vertex(i2 + u, n2));
+      b.vertices.push_back(Vertex(i2 - u, n2));
+      b.vertices.push_back(Vertex(i2 - u, n2));
+      b.vertices.push_back(Vertex(i1 - u, n1));
+      b.vertices.push_back(Vertex(i1 + u, n1));
+      // Top face.
+      b.vertices.push_back(Vertex(o1 + u, nu));
+      b.vertices.push_back(Vertex(o2 + u, nu));
+      b.vertices.push_back(Vertex(i2 + u, nu));
+      b.vertices.push_back(Vertex(i2 + u, nu));
+      b.vertices.push_back(Vertex(i1 + u, nu));
+      b.vertices.push_back(Vertex(o1 + u, nu));
+      // Bottom face.
+      b.vertices.push_back(Vertex(o2 - u, -nu));
+      b.vertices.push_back(Vertex(o1 - u, -nu));
+      b.vertices.push_back(Vertex(i1 - u, -nu));
+      b.vertices.push_back(Vertex(i1 - u, -nu));
+      b.vertices.push_back(Vertex(i2 - u, -nu));
+      b.vertices.push_back(Vertex(o2 - u, -nu));      
+    } else { // cylinder
+      // Top face.
+      b.vertices.push_back(Vertex(o1 + u, nu));
+      b.vertices.push_back(Vertex(o2 + u, nu));
+      b.vertices.push_back(Vertex(u, nu));
+      // Bottom face.
+      b.vertices.push_back(Vertex(o2 - u, -nu));
+      b.vertices.push_back(Vertex(o1 - u, -nu));
+      b.vertices.push_back(Vertex(-u, -nu));
+    }
     if (!i) {
       // A red stripe to make rotation visible.
       for (size_t j = sz0; j < b.vertices.size(); ++j)
@@ -95,12 +123,4 @@ BodyEdit MakeCylinder(double r, double h) {
     }
   }
   return b;
-}
-BodyEdit MakeTube(double in_r, double out_r, double h) {
-  BodyEdit b;
-  b.mass = M_PI*(out_r*out_r - in_r*in_r)*h;
-  b.com = fvec3(0, 0, 0);
-  double t = in_r*in_r + out_r*out_r;
-  b.inertia = b.mass/12 * dmat3::Diag(3*t + h*h, 6*t, 3*t + h*h);
-  throw NotImplementedException();
 }
