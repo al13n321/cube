@@ -47,6 +47,10 @@ struct tquat {
   tquat operator*(T s) const {
     return tquat(a*s, b*s, c*s, d*s);
   }
+  tquat& operator*=(T s) {
+    a*=s; b*=s; c*=s; d*=s;
+    return *this;
+  }
   tquat operator/(T s) const {
     return tquat(a/s, b/s, c/s, d/s);
   }

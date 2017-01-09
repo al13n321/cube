@@ -90,7 +90,8 @@ int main() {
     scene.camera.LookAt(scene.bodies.begin()->pos);
     cube->forces.emplace_back(dvec3(-1.5, 0, 0), dvec3(0, 0, 0));
     cube->forces.emplace_back(dvec3(+1.5, 0, 0), dvec3(0, 0, 0));
-
+    cube->ang = dvec3(0,-1.24991,-0.758193); // some torque-free precession
+    
     Stopwatch frame_stopwatch;
     while (!window->ShouldClose()) {
       double dt = frame_stopwatch.Restart();
@@ -106,8 +107,7 @@ int main() {
         cube->rot = dquat(1, 0, 0, 0);
       }
 
-      for (int i = 0; i < 100; ++i)
-        scene.PhysicsStep(dt / 100);
+      scene.PhysicsStep(dt);
       scene.Render();
       
       window->SwapBuffers();

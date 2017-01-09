@@ -34,7 +34,7 @@ static const char* vertex_shader = R"(
   void main(){
     vec4 p = model_mat * vec4(vert_pos, 1);
     pos = p.xyz;
-    normal = vert_normal;
+    normal = (model_mat * vec4(vert_normal, 1)).xyz;
     color = vert_color;
     gl_Position =  view_proj_mat * p;
   }
