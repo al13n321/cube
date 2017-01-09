@@ -65,6 +65,10 @@ fvec3 wasdqz(glfw::Window& w) {
   return r;
 }
 
+double rnd() {
+  return (((rand()+.5)/(RAND_MAX+1.)+rand())/(RAND_MAX+1.)+rand())/(RAND_MAX+1.);
+}
+
 int main() {
   try {
     glfwSetErrorCallback(&LogGLFWError);

@@ -2,6 +2,7 @@
 
 #include "vec.h"
 #include "mat.h"
+#include <ostream>
 
 // Quaternion.
 struct fquat {
@@ -94,3 +95,7 @@ struct fquat {
     return fvec3(q.b, q.c, q.d);
   }
 };
+
+inline std::ostream& operator<<(std::ostream& o, const fquat& q){
+  return o<<'('<<q.a<<','<<q.b<<','<<q.c<<','<<q.d<<')';
+}
