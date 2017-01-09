@@ -79,7 +79,7 @@ void Scene::PhysicsStep(double dt) {
   };
   const int steps = 1;
   for (int i = 0; i < steps; ++i) {
-    Euler(state_vec, dt / steps, f);
+    RungeKutta4(state_vec, dt / steps, f);
   }
   i = 0;
   for (Body& body: bodies) {

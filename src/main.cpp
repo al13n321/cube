@@ -85,13 +85,13 @@ int main() {
     window->SetCursorPosCallback(&CursorPosCallback);
 
     Scene scene;
-    Body* cube = scene.AddBody(MakeBox(dvec3(.2, .1, .3)).MultiplyMass(2700));
+    Body* cyl = scene.AddBody(MakeCylinder(.1, .1).MultiplyMass(2700));
     scene.camera.pos = fvec3(-.2, .2, .3);
     scene.camera.LookAt(scene.bodies.begin()->pos);
-    cube->forces.emplace_back(dvec3(-1.5, 0, 0), dvec3(0, 0, 0));
-    cube->forces.emplace_back(dvec3(+1.5, 0, 0), dvec3(0, 0, 0));
-    cube->ang = dvec3(0,-1.24991,-0.758193); // some torque-free precession
-    
+    cyl->forces.emplace_back(dvec3(-1.5, 0, 0), dvec3(0, 0, 0));
+    cyl->forces.emplace_back(dvec3(+1.5, 0, 0), dvec3(0, 0, 0));
+    cyl->ang = dvec3(0,-1.24991,-0.758193);
+
     Stopwatch frame_stopwatch;
     while (!window->ShouldClose()) {
       double dt = frame_stopwatch.Restart();
@@ -100,11 +100,11 @@ int main() {
       UpdateFPS();
 
       dvec3 in = wasdqz(*window);
-      cube->forces.begin()->second = in;
-      cube->forces.rbegin()->second = -in;
+      cyl->forces.begin()->second = in;
+      cyl->forces.rbegin()->second = -in;
       if (window->IsKeyPressed(GLFW_KEY_R)) {
-        cube->ang = dvec3(0, 0, 0);
-        cube->rot = dquat(1, 0, 0, 0);
+        cyl->ang = dvec3(0, 0, 0);
+        cyl->rot = dquat(1, 0, 0, 0);
       }
 
       scene.PhysicsStep(dt);

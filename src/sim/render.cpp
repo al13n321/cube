@@ -70,9 +70,9 @@ void Scene::Render() {
   shader_.SetScalar("time", t);
   shader_.SetMat4("view_proj_mat", camera.ViewProjection());
   for (auto& body: bodies) {
-    shader_.SetVec3("tint_color", body.model.tint);
+    shader_.SetVec3("tint_color", body.mesh.tint);
     shader_.SetMat4("model_mat", fmat4::Translation(body.pos) * body.rot.ToMatrix());
-    body.model.vao->Draw();
+    body.mesh.vao->Draw();
   }
 }
 
@@ -93,7 +93,7 @@ Body* Scene::AddBody(BodyEdit edit) {
 
   b->mass = edit.mass;
   b->inv_inertia = edit.inertia.Inverse();
-  b->model.vao.reset(new GL::VertexArray(edit.vertices.size()));
+  b->mesh.vao.reset(new GL::VertexArray(edit.vertices.size()));
 
   using Attribute = GL::VertexArray::Attribute;
   vector<Attribute> attrs = {
@@ -101,7 +101,7 @@ Body* Scene::AddBody(BodyEdit edit) {
     Attribute(1, 3, GL_FLOAT, sizeof(BodyEdit::Vertex), offsetof(BodyEdit::Vertex, normal)),
     Attribute(2, 3, GL_FLOAT, sizeof(BodyEdit::Vertex), offsetof(BodyEdit::Vertex, color)),
   };
-  b->model.vao->AddAttributes(attrs.size(), &attrs[0], edit.vertices.size() * sizeof(edit.vertices[0]), &edit.vertices[0]);
+  b->mesh.vao->AddAttributes(attrs.size(), &attrs[0], edit.vertices.size() * sizeof(edit.vertices[0]), &edit.vertices[0]);
 
   return b;
 }

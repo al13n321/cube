@@ -38,7 +38,7 @@ class BodyEdit {
   BodyEdit& Rotate(dquat q);
 };
 
-class Model {
+class Mesh {
  public:
   fvec3 tint = fvec3(0, 0, 0);
   std::unique_ptr<GL::VertexArray> vao;
@@ -64,7 +64,7 @@ class Body {
   std::list<std::pair<dvec3, dvec3>> forces;
 
   // How to render it.
-  Model model;
+  Mesh mesh;
 
   Body(size_t idx): idx(idx) {}
 };
