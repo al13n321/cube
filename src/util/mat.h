@@ -39,6 +39,11 @@ struct tmat3 {
       m[i] *= b;
     return *this;
   }
+  tmat3& operator+=(const tmat3& b) {
+    for (int i = 0; i < 9; ++i)
+      m[i] += b.m[i];
+    return *this;
+  }
   tmat3 Inverse() const {
     T d = m[0]*m[4]*m[8]-m[0]*m[5]*m[7]-m[1]*m[3]*m[8]+m[1]*m[5]*m[6]+m[2]*m[3]*m[7]-m[2]*m[4]*m[6];
     return tmat3((m[4]*m[8]-m[5]*m[7])/d,

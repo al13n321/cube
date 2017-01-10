@@ -29,7 +29,7 @@ class BodyEdit {
   dvec3 com; // center of mass
   dmat3 inertia; // around origin
 
-  BodyEdit& SetColor(fvec3 color);
+  BodyEdit& AddColor(fvec3 color);
 
   // Create union of `*this` and `rhs` and put it into `*this`.
   BodyEdit& Merge(const BodyEdit& rhs);

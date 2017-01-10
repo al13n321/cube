@@ -1,9 +1,9 @@
 #include "sim/scene.h"
 #include "util/exceptions.h"
 
-BodyEdit& BodyEdit::SetColor(fvec3 color) {
+BodyEdit& BodyEdit::AddColor(fvec3 color) {
   for (Vertex& v: vertices)
-    v.color = color;
+    v.color += color;
   return *this;
 }
 
@@ -14,7 +14,10 @@ BodyEdit& BodyEdit::MultiplyMass(double factor) {
 }
 
 BodyEdit& BodyEdit::Merge(const BodyEdit& b) {
-  throw NotImplementedException();
+  vertices.insert(vertices.end(), b.vertices.begin(), b.vertices.end());
+  com = (com * mass + b.com * b.mass) / (mass + b.mass);
+  mass += b.mass;
+  inertia += b.inertia;
   return *this;
 }
 
