@@ -68,7 +68,7 @@ struct tquat {
     return res;
   }
 
-  fmat4 ToMatrix() const {
+  fmat4 ToMatrix4() const {
     // Source: http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToMatrix/
     // (a bit modified)
     return fmat4(
@@ -82,6 +82,19 @@ struct tquat {
       -c,  b,  a,  d,
       -b, -c, -d,  a
     );
+  }
+
+  tmat3<T> ToMatrix() const {
+    // It's silly to have different quaternion->matrix conversion for 3x3 and 4x4 matrices,
+    // but this one is templated and the other one looks neat.
+    return
+      tmat3<T>::Identity() +
+      2.*tmat3<T>(-c*c-d*d, b*c, b*d,
+                 b*c, -b*b-d*d, c*d,
+                 b*d, c*d, -b*b-c*c) +
+      2.*a*tmat3<T>(0, -d, c,
+                   d, 0, -b,
+                   -c, b, 0);
   }
 
   tquat Conjugate() const {
@@ -100,6 +113,14 @@ struct tquat {
   tvec3<T> Untransform(tvec3<T> v) const {
     tquat q = this->Inverse() * tquat(0, v.x, v.y, v.z) * *this;
     return tvec3<T>(q.b, q.c, q.d);
+  }
+
+  tmat3<T> Transform(tmat3<T> m) const {
+    for (int i = 0; i < 3; ++i) {
+      tvec3<T> c = Transform(tvec3<T>(m.m[i], m.m[i+3], m.m[i+6]));
+      m.m[i] = c.x; m.m[i+3] = c.y; m.m[i+6] = c.z;
+    }
+    return m;
   }
 };
 

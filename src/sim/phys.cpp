@@ -36,7 +36,7 @@ void RungeKutta4(valarray<double>& y, double h, function<void(const valarray<dou
   f(y + h/2*k2, k3);
   f(y + h*k3, k4);
   y += h/6*k1 + h/3*k2 + h/3*k3 + h/6*k4;
-}
+}//*/
 
 /*
 // If you want to see the difference between first-order and fourth-order integration,
@@ -77,7 +77,7 @@ void Scene::PhysicsStep(double dt) {
       ++i;
     }
   };
-  const int steps = 1;
+  const int steps = 100;
   for (int i = 0; i < steps; ++i) {
     RungeKutta4(state_vec, dt / steps, f);
   }

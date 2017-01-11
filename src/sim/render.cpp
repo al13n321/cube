@@ -71,7 +71,7 @@ void Scene::Render() {
   shader_.SetMat4("view_proj_mat", camera.ViewProjection());
   for (auto& body: bodies) {
     shader_.SetVec3("tint_color", body.mesh.tint);
-    shader_.SetMat4("model_mat", fmat4::Translation(body.pos) * body.rot.ToMatrix());
+    shader_.SetMat4("model_mat", fmat4::Translation(body.pos) * body.rot.ToMatrix4());
     body.mesh.vao->Draw();
   }
 }

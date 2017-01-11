@@ -27,7 +27,7 @@ class BodyEdit {
   std::vector<Vertex> vertices;
   double mass;
   dvec3 com; // center of mass
-  dmat3 inertia; // around origin
+  dmat3 inertia; // around center of mass
 
   BodyEdit& AddColor(fvec3 color);
 
@@ -105,3 +105,4 @@ BodyEdit MakeTube(double in_r, double out_r, double h); // Difference of two cyl
 inline BodyEdit MakeCylinder(double r, double h) {
   return MakeTube(0, r, h);
 }
+BodyEdit MakeTHandle(double rh=.015, double lh=.15, double rv=.0075, double lv=.09);

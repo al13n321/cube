@@ -13,22 +13,38 @@ BodyEdit& BodyEdit::MultiplyMass(double factor) {
   return *this;
 }
 
+// Inertia tensor around origin of a unit mass in point p.
+static dmat3 PointInertia(dvec3 p) {
+  dmat3 m(0, -p.z, p.y, p.z, 0, -p.x, -p.y, p.x, 0);
+  return -m*m;
+}
+
 BodyEdit& BodyEdit::Merge(const BodyEdit& b) {
   vertices.insert(vertices.end(), b.vertices.begin(), b.vertices.end());
-  com = (com * mass + b.com * b.mass) / (mass + b.mass);
+  dvec3 ncom = (com * mass + b.com * b.mass) / (mass + b.mass);
+  // Inertia around origin is inertia around c.o.m. + inertia of c.o.m. around origin.
+  // Only works for center of mass, not for any point.
+  inertia += b.inertia + PointInertia(com - ncom)*mass + PointInertia(b.com - ncom)*b.mass;
+  com = ncom;
   mass += b.mass;
-  inertia += b.inertia;
   return *this;
 }
 
 BodyEdit& BodyEdit::Translate(dvec3 d) {
-  if (d.Length() > 1e-12)
-    throw NotImplementedException();
+  for (Vertex& v: vertices)
+    v.pos += fvec3(d);
+  com += d;
   return *this;
 }
 
 BodyEdit& BodyEdit::Rotate(dquat q) {
-  throw NotImplementedException();
+  for (Vertex& v: vertices) {
+    v.pos = q.Transform(v.pos);
+    v.normal = q.Transform(v.normal);
+  }
+  com = q.Transform(com);
+  dmat3 m = q.ToMatrix();
+  inertia = m*inertia*m.Transposed();
   return *this;
 }
 
@@ -126,4 +142,12 @@ BodyEdit MakeTube(double in_r, double out_r, double h) {
     }
   }
   return b;
+}
+
+BodyEdit MakeTHandle(double rh, double lh, double rv, double lv) {
+  BodyEdit h = MakeCylinder(rh, lh);
+  h.Rotate(dquat(M_PI/2, dvec3(0, 0, 1)));
+  h.Translate(dvec3(0, lv/2, 0));
+  h.Merge(MakeCylinder(rv, lv));
+  return h;
 }

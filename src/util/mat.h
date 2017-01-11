@@ -44,6 +44,27 @@ struct tmat3 {
       m[i] += b.m[i];
     return *this;
   }
+  tmat3& operator-=(const tmat3& b) {
+    for (int i = 0; i < 9; ++i)
+      m[i] -= b.m[i];
+    return *this;
+  }
+  tmat3 operator+(const tmat3& b) const {
+    tmat3 r = *this;
+    r += b;
+    return r;
+  }
+  tmat3 operator-(const tmat3& b) const {
+    tmat3 r = *this;
+    r -= b;
+    return r;
+  }
+  tmat3 operator-() const {
+    tmat3 r;
+    for (int i = 0; i < 9; ++i)
+      r.m[i] = -m[i];
+    return r;
+  }
   tmat3 Inverse() const {
     T d = m[0]*m[4]*m[8]-m[0]*m[5]*m[7]-m[1]*m[3]*m[8]+m[1]*m[5]*m[6]+m[2]*m[3]*m[7]-m[2]*m[4]*m[6];
     return tmat3((m[4]*m[8]-m[5]*m[7])/d,
@@ -55,6 +76,9 @@ struct tmat3 {
                  (m[3]*m[7]-m[4]*m[6])/d,
                  (m[1]*m[6]-m[0]*m[7])/d,
                  (m[0]*m[4]-m[1]*m[3])/d);
+  }
+  tmat3 Transposed() const {
+    return tmat3(m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]);
   }
 
   static tmat3 Zero() {
@@ -82,6 +106,17 @@ tvec3<T> operator*(const tmat3<T>& m, const tvec3<T>& v) {
   return tvec3<T>(v.x*m.m[0] + v.y*m.m[1] + v.z*m.m[2],
                   v.x*m.m[3] + v.y*m.m[4] + v.z*m.m[5],
                   v.x*m.m[6] + v.y*m.m[7] + v.z*m.m[8]);
+}
+
+template<typename T>
+std::ostream& operator<<(std::ostream& o, const tmat3<T>& m) {
+  o << '(';
+  for (int i = 0; i < 9; ++i) {
+    if (i)
+      o << ',';
+    o << m.m[i];
+  }
+  return o << ')';
 }
 
 struct fmat4 {

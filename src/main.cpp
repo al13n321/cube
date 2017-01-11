@@ -85,11 +85,12 @@ int main() {
     window->SetCursorPosCallback(&CursorPosCallback);
 
     Scene scene;
-    Body* cyl = scene.AddBody(MakeTube(.15, .2, .05).MultiplyMass(2700));
-    scene.camera.pos = fvec3(-.2, .2, .3);
+    Body* body = scene.AddBody(MakeTHandle().MultiplyMass(2700));
+    scene.camera.pos = fvec3(-.1, .1, .15);
     scene.camera.LookAt(scene.bodies.begin()->pos);
-    cyl->forces.emplace_back(dvec3(-1.5, 0, 0), dvec3(0, 0, 0));
-    cyl->forces.emplace_back(dvec3(+1.5, 0, 0), dvec3(0, 0, 0));
+    body->forces.emplace_back(dvec3(-1.5, 0, 0), dvec3(0, 0, 0));
+    body->forces.emplace_back(dvec3(+1.5, 0, 0), dvec3(0, 0, 0));
+    body->ang = dvec3(0,-0.00711448,0);
 
     Stopwatch frame_stopwatch;
     while (!window->ShouldClose()) {
@@ -98,13 +99,15 @@ int main() {
 
       UpdateFPS();
 
-      dvec3 in = wasdqz(*window);
-      cyl->forces.begin()->second = in;
-      cyl->forces.rbegin()->second = -in;
+      dvec3 in = wasdqz(*window) * 1e-3;
+      body->forces.begin()->second = in;
+      body->forces.rbegin()->second = -in;
       if (window->IsKeyPressed(GLFW_KEY_R)) {
-        cyl->ang = dvec3(0, 0, 0);
-        cyl->rot = dquat(1, 0, 0, 0);
+        body->ang = dvec3(0, 0, 0);
+        body->rot = dquat(1, 0, 0, 0);
       }
+
+      //if (frame_idx % 120 == 0) cerr << body->ang << endl;
 
       scene.PhysicsStep(dt);
       scene.Render();
