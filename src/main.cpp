@@ -48,19 +48,20 @@ static void UpdateFPS() {
   }
 }
 
-dvec3 wasdqz(glfw::Window& w) {
+// Order of keys is: forward, backwards, left, right, up, down (-z, +z, -x, +x, +y, -y), ALL CAPS.
+dvec3 SixDofInput(glfw::Window& w, const char* keys) {
   dvec3 r = {0, 0, 0};
-  if (w.IsKeyPressed(GLFW_KEY_A))
+  if (w.IsKeyPressed(keys[2]))
     r.x -= 1;
-  if (w.IsKeyPressed(GLFW_KEY_D))
+  if (w.IsKeyPressed(keys[3]))
     r.x += 1;
-  if (w.IsKeyPressed(GLFW_KEY_W))
+  if (w.IsKeyPressed(keys[0]))
     r.z -= 1;
-  if (w.IsKeyPressed(GLFW_KEY_S))
+  if (w.IsKeyPressed(keys[1]))
     r.z += 1;
-  if (w.IsKeyPressed(GLFW_KEY_Q))
+  if (w.IsKeyPressed(keys[4]))
     r.y += 1;
-  if (w.IsKeyPressed(GLFW_KEY_Z))
+  if (w.IsKeyPressed(keys[5]))
     r.y -= 1;
   return r;
 }
@@ -86,30 +87,84 @@ int main() {
 
     Scene scene;
     Body* body = scene.AddBody(MakeTHandle().MultiplyMass(2700));
+
+    // Very heavy second body linked to the first one.
+    //Body* body2 __attribute__((unused)) = scene.AddBody(MakeTHandle().Scale(.5).MultiplyMass(27000));
+    Body* body2 __attribute__((unused)) = scene.AddBody(MakeBox(dvec3(.04, 0.05, .06)).MultiplyMass(27000));
+
+    auto stop_translation = [&] {
+      body->momentum = body2->momentum = dvec3(0, 0, 0);
+    };
+    auto stop_rotation = [&] {
+      body->ang = body2->ang = dvec3(0, 0, 0);
+    };
+    auto reset = [&] {
+      stop_translation();
+      stop_rotation();
+      body->pos = dvec3(0, 0, 0);
+      body->rot = dquat(1, 0, 0, 0);
+      body2->rot = dquat(1, 0, 0, 0);
+
+      body2->pos = dvec3(.07, 0, .07);
+      //body2->pos = dvec3(1e-3, 0, 0);
+      //body->ang = dvec3(0,-0.00711448,0);
+    };
+
+    reset();
+
+    scene.AddConstraint(body->idx, body2->idx, dvec3(0, 0, 0), dquat(1, 0, 0, 0), Constraint::DOF::POS | Constraint::DOF::ROT);
+
+    body->forces.emplace_back(dvec3(-1, 0, 0), dvec3(0, 0, 0)); auto& forcenx = body->forces.back();
+    body->forces.emplace_back(dvec3(+1, 0, 0), dvec3(0, 0, 0)); auto& forcepx = body->forces.back();
+    body->forces.emplace_back(dvec3(0, -1, 0), dvec3(0, 0, 0)); auto& forceny = body->forces.back();
+    body->forces.emplace_back(dvec3(0, +1, 0), dvec3(0, 0, 0)); auto& forcepy = body->forces.back();
+
     scene.camera.pos = fvec3(-.1, .1, .15);
     scene.camera.LookAt(scene.bodies.begin()->pos);
-    body->forces.emplace_back(dvec3(-1.5, 0, 0), dvec3(0, 0, 0));
-    body->forces.emplace_back(dvec3(+1.5, 0, 0), dvec3(0, 0, 0));
-    body->ang = dvec3(0,-0.00711448,0);
 
     Stopwatch frame_stopwatch;
+    double energy_after_last_force = scene.GetEnergy();
     while (!window->ShouldClose()) {
       double dt = frame_stopwatch.Restart();
       ++frame_idx;
 
       UpdateFPS();
 
-      dvec3 in = wasdqz(*window) * 1e-3;
-      body->forces.begin()->second = in;
-      body->forces.rbegin()->second = -in;
-      if (window->IsKeyPressed(GLFW_KEY_R)) {
-        body->ang = dvec3(0, 0, 0);
-        body->rot = dquat(1, 0, 0, 0);
-      }
+      if (window->IsKeyPressed(GLFW_KEY_R))
+        reset();
+      if (window->IsKeyPressed(GLFW_KEY_V))
+        stop_translation();
+      if (window->IsKeyPressed(GLFW_KEY_C))
+        stop_rotation();
+
+      bool have_forces = false;
+      
+      dvec3 in = SixDofInput(*window, "WSADQZ") * 1e-3;
+      have_forces |= !in.IsZero();
+      forcenx.second = dvec3(0, in.x, -in.y);
+      forcepx.second = dvec3(0, -in.x, in.y);
+      forceny.second = dvec3(0, 0, -in.z);
+      forcepy.second = dvec3(0, 0, in.z);
+
+      in = SixDofInput(*window, "IKJLUM") * 1e-1;
+      have_forces |= !in.IsZero();
+      forcenx.second += in;
+      forcepx.second += in;
 
       //if (frame_idx % 120 == 0) cerr << body->ang << endl;
 
       scene.PhysicsStep(dt);
+
+      if (have_forces)
+        energy_after_last_force = scene.GetEnergy();
+      else if (frame_idx % 120 == 0)
+        cerr << "energy difference: " << (scene.GetEnergy() - energy_after_last_force) / energy_after_last_force << endl;
+
+      if (frame_idx % 120 == 0) {
+        cerr << "leaked:\n  x: " << scene.leaked_translation << ", r: " << scene.leaked_rotation
+             << ", v: " << scene.leaked_velocity << ", w: " << scene.leaked_angular_velocity << endl;
+      }
+      
       scene.Render();
       
       window->SwapBuffers();

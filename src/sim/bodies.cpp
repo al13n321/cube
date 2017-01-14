@@ -48,6 +48,16 @@ BodyEdit& BodyEdit::Rotate(dquat q) {
   return *this;
 }
 
+BodyEdit& BodyEdit::Scale(double factor) {
+  for (Vertex& v: vertices) {
+    v.pos *= factor;
+  }
+  com *= factor;
+  mass *= pow(factor, 3);
+  inertia *= pow(factor, 3);
+  return *this;
+}
+
 BodyEdit MakeBox(dvec3 s) {
   BodyEdit b;
   b.mass = s.x * s.y * s.z;

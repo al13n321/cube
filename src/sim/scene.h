@@ -6,6 +6,7 @@
 #include "gl-util/shader.h"
 #include <vector>
 #include <list>
+#include <deque>
 
 // The implementation of functions declared here is somewhat arbitrarily split between render.cpp and phys.cpp.
 
@@ -36,6 +37,7 @@ class BodyEdit {
   BodyEdit& MultiplyMass(double factor);
   BodyEdit& Translate(dvec3 d);
   BodyEdit& Rotate(dquat q);
+  BodyEdit& Scale(double factor);
 };
 
 class Mesh {
@@ -47,7 +49,7 @@ class Mesh {
 class Body {
  public:
   // Identifier.
-  size_t idx; // index in list of all entities
+  int idx; // index in list of all entities
 
   // Physical properties.
   double mass = 0;
@@ -66,7 +68,40 @@ class Body {
   // How to render it.
   Mesh mesh;
 
-  Body(size_t idx): idx(idx) {}
+  Body(int idx): idx(idx) {}
+};
+
+// A generic constraint, similar to e.g. btGeneric6DofConstraint in Bullet Physics.
+// It's probably better to use the bigger/more-stationary body as body1 and the more movable as body2.
+// (I don't know how much better yet. body2 is slightly moved in non-physical ways to compensate for numerical errors.)
+struct Constraint {
+  using dof_t = uint8_t;
+  
+  enum DOF: dof_t {
+    PX = 1,
+    PY = 2,
+    PZ = 4,
+    RX = 8,
+    RY = 16,
+    RZ = 32,
+
+    POS = PX | PY | PZ,
+    ROT = RX | RY | RZ,
+  };
+
+  int body1; // -1 for world
+  int body2; // can't be -1
+
+  // constraint point in body space
+  dvec3 pos1;
+  dvec3 pos2;
+  // body -> constraint space
+  dquat rot1;
+  dquat rot2;
+
+  // Which degrees of freedom to lock.
+  // E.g. POS is ball socket, POS | RX | RY is hinge constraint.
+  dof_t lock;
 };
 
 struct Camera {
@@ -83,18 +118,30 @@ struct Camera {
 
 class Scene {
  public:
-  std::list<Body> bodies;
-  Camera camera;
-  fvec3 light_vec = fvec3(-3, 2, 1).Normalized(); // direction from which the light is coming
-
   Scene();
 
   Body* AddBody();
   Body* AddBody(BodyEdit edit); // puts c.o.m. at origin
+  // pos1 and rot1 are calculated from current positions and orientations of the two bodies.
+  Constraint* AddConstraint(int body1, int body2, dvec3 pos2, dquat rot2, Constraint::dof_t lock);
 
   void Render();
   void PhysicsStep(double dt);
 
+  double GetEnergy() const;
+
+  std::deque<Body> bodies;
+  std::deque<Constraint> constraints;
+
+  Camera camera;
+  fvec3 light_vec = fvec3(-3, 2, 1).Normalized(); // direction from which the light is coming
+
+  // From constraints.
+  double leaked_translation = 0;
+  double leaked_rotation = 0;
+  double leaked_velocity = 0;
+  double leaked_angular_velocity = 0;
+  
  private:
   GL::Shader shader_;
 };
