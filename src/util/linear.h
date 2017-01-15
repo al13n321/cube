@@ -1,4 +1,5 @@
 #pragma once
+#include <cassert>
 #include <valarray>
 
 template<typename T>
@@ -18,11 +19,25 @@ struct TMatrix {
 
   // If new n*m is same as current, "reshapes" the matrix keeping contents.
   // Otherwise destroys contents.
-  void resize(size_t _n, size_t _m) {
+  void Resize(size_t _n, size_t _m) {
     if (_n * _m != n * m)
       a.resize(_n * _m);
     n = _n;
     m = _m;
+  }
+
+  void Fill(T v) {
+    a = v;
+  }
+
+  size_t Stride() const {
+    return m;
+  }
+
+  void FillIdentity() {
+    Fill(0);
+    for (size_t i = 0; i < n && i < m; ++i)
+      a[i*m + i] = 1;
   }
 
   // Solves system of linear equations. Let w=*this, and m = n+1. The equations are:
@@ -65,7 +80,9 @@ bool TMatrix<T>::SolveLinearSystem(T epsilon) {
       for (size_t j = i; j < m; ++j)
         std::swap(a[i*m + j], a[k*m + j]);
     }
-    a[std::slice(i*m + i, m-i, 1)] /= a[i*m + i];
+    T c = 1/a[i*m + i];
+    for (size_t j = i; j < m; ++j)
+      a[i*m + j] *= c;
     for (size_t r = 0; r < n; ++r) {
       if (r == i)
         continue;

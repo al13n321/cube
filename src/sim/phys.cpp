@@ -62,6 +62,8 @@ struct StateVector {
 
 struct Context {
   vector<BodyForce> external_forces;
+  // External + constraint.
+  vector<BodyForce> effective_forces;
   // Constraint idx -> idx of the first var. #vars is # locked DOFs.
   vector<int> var_idx;
   // body_idx*6+f -> coefs of linear combination of vars that is equal
@@ -167,10 +169,67 @@ void EnforceConstraints(Scene& scene) {
     }
   }
 }
-/*
-void ResolveForces(const Scene& scene, Context& context) {
-  
-}*/
+
+// Fills context.effective_forces.
+void ResolveForces(Scene& scene, const StateVector& state, Context& context) {
+  size_t nvars = context.var_idx.back();
+  auto& fv = context.force_from_vars;
+  fv.Resize(scene.bodies.size() * 6, nvars + 1);
+  fv.Fill(0);
+
+  for (size_t i = 0; i < scene.bodies.size(); ++i) {
+    context.external_forces[i].force.ToArray(fv[i*6] + nvars, fv.Stride());
+    context.external_forces[i].torque.ToArray(fv[i*6 + 3] + nvars, fv.Stride());
+  }
+
+  auto mat_to_vars = [&](const dmat3& m, size_t fi, size_t var, Constraint::dof_t dofs) {
+    for (size_t i = 0; i < 3; ++i) {
+      size_t v = var;
+      for (size_t j = 0; j < 3; ++j) {
+        if (dofs & ((Constraint::DOF::PX | Constraint::DOF::RX) << j))
+          fv[fi + i][v++] += m[i][j];
+      }
+    }
+  };
+  for (size_t i = 0; i < scene.constraints.size(); ++i) {
+    const Constraint& c = scene.constraints[i];
+    const BodyState& s1 = state[c.body1];
+    const BodyState& s2 = state[c.body2];
+    size_t var = context.var_idx[i];
+    auto pos_dof = c.lock & Constraint::DOF::POS;
+    if (pos_dof) {
+      dmat3 m = (s1.rot * c.rot1.Conjugate()).ToMatrix();
+      mat_to_vars(-m, c.body1*6, var, pos_dof);
+      mat_to_vars(m, c.body2*6, var, pos_dof);
+      // Body torque depends on constraint force too (not only on constraint torque).
+      m = -s1.rot.ToMatrix() * c.pos1.Skew() * c.rot1.Conjugate().ToMatrix();
+      mat_to_vars(m, c.body1*6 + 3, var, pos_dof);
+      m = (s1.rot.Transform(c.pos1) + s1.pos - s2.pos).Skew() * (s1.rot * c.rot1.Conjugate()).ToMatrix();
+      mat_to_vars(m, c.body2*6 + 3, var, pos_dof);
+      var += __builtin_popcount(pos_dof);
+    }
+    if (c.lock & Constraint::DOF::ROT) {
+    }
+  }
+
+  context.equations.Resize(nvars, nvars + 1);
+  context.equations.FillIdentity();
+  // TODO: Fill in the equations.
+
+  bool ok = context.equations.SolveLinearSystem();
+  ++(ok ? scene.force_resolution_success : scene.force_resolution_failed);
+
+  for (size_t i = 0; i < fv.n; ++i) {
+    for (size_t j = 0; j < nvars; ++j)
+      fv[i][nvars] += fv[i][j] * context.equations[j][nvars];
+  }
+
+  context.effective_forces.resize(scene.bodies.size());
+  for (size_t i = 0; i < scene.bodies.size(); ++i) {
+    context.effective_forces[i].force.FromArray(fv[i*6] + nvars, fv.Stride());
+    context.effective_forces[i].torque.FromArray(fv[i*6+3] + nvars, fv.Stride());
+  }
+}
 
 } // namespace {
 
@@ -183,8 +242,12 @@ double Scene::GetEnergy() const {
 
 void Scene::PhysicsStep(double dt) {
   Context context;
+  context.var_idx.resize(constraints.size() + 1);
+  for (size_t i = 0; i < constraints.size(); ++i) {
+    size_t n = __builtin_popcount(constraints[i].lock);
+    context.var_idx[i + 1] = context.var_idx[i] + n;
+  }
   context.external_forces.resize(bodies.size());
-  context.var_idx.resize(constraints.size());
   StateVector state_vec(bodies.size());
   for (size_t i = 0; i < bodies.size(); ++i) {
     Body& body = bodies[i];
@@ -195,6 +258,7 @@ void Scene::PhysicsStep(double dt) {
     state_vec[i].FromBody(body);
   }
   auto f = [&](const StateVector& y, StateVector& yp) {
+    ResolveForces(*this, y, context);
     for (size_t i = 0; i < bodies.size(); ++i) {
       const Body& body = bodies[i];
       const BodyState& s = y[i];
@@ -202,8 +266,8 @@ void Scene::PhysicsStep(double dt) {
       p.pos = s.momentum / body.mass;
       dvec3 av = body.inv_inertia * (s.rot.ToMatrix().Transposed() * s.ang);
       p.rot = s.rot * fquat(0, av.x, av.y, av.z) * .5;
-      p.momentum = context.external_forces[i].force;
-      p.ang = context.external_forces[i].torque;
+      p.momentum = context.effective_forces[i].force;
+      p.ang = context.effective_forces[i].torque;
     }
   };
   const int steps = 100;

@@ -136,12 +136,17 @@ class Scene {
   Camera camera;
   fvec3 light_vec = fvec3(-3, 2, 1).Normalized(); // direction from which the light is coming
 
+  // Stats.
+
   // From constraints.
   double leaked_translation = 0;
   double leaked_rotation = 0;
   double leaked_velocity = 0;
   double leaked_angular_velocity = 0;
-  
+
+  size_t force_resolution_success = 0;
+  size_t force_resolution_failed = 0;
+
  private:
   GL::Shader shader_;
 };

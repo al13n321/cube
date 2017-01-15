@@ -130,15 +130,21 @@ int main() {
 
       UpdateFPS();
 
-      if (window->IsKeyPressed(GLFW_KEY_R))
-        reset();
-      if (window->IsKeyPressed(GLFW_KEY_V))
-        stop_translation();
-      if (window->IsKeyPressed(GLFW_KEY_C))
-        stop_rotation();
-
       bool have_forces = false;
-      
+
+      if (window->IsKeyPressed(GLFW_KEY_R)) {
+        reset();
+        have_forces = true;
+      }
+      if (window->IsKeyPressed(GLFW_KEY_V)) {
+        stop_translation();
+        have_forces = true;
+      }
+      if (window->IsKeyPressed(GLFW_KEY_C)) {
+        stop_rotation();
+        have_forces = true;
+      }
+
       dvec3 in = SixDofInput(*window, "WSADQZ") * 1e-3;
       have_forces |= !in.IsZero();
       forcenx.second = dvec3(0, in.x, -in.y);
@@ -161,8 +167,9 @@ int main() {
         cerr << "energy difference: " << (scene.GetEnergy() - energy_after_last_force) / energy_after_last_force << endl;
 
       if (frame_idx % 120 == 0) {
-        cerr << "leaked:\n  x: " << scene.leaked_translation << ", r: " << scene.leaked_rotation
-             << ", v: " << scene.leaked_velocity << ", w: " << scene.leaked_angular_velocity << endl;
+        cerr << "leaked:  x: " << scene.leaked_translation << ", r: " << scene.leaked_rotation
+             << ", v: " << scene.leaked_velocity << ", w: " << scene.leaked_angular_velocity
+             << "  res ok: " << scene.force_resolution_success << " fail: " << scene.force_resolution_failed << endl;
       }
       
       scene.Render();
