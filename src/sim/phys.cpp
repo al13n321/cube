@@ -1,4 +1,5 @@
 #include "sim/scene.h"
+#include "util/linear.h"
 #include <valarray>
 #include <cassert>
 #include <iostream>
@@ -15,16 +16,12 @@ struct BodyState {
   dvec3 ang;
 
   BodyState() = default;
-  BodyState(const Body& b): pos(b.pos), rot(b.rot), momentum(b.momentum), ang(b.ang) {}
-  BodyState(const double* p) {
-    memcpy(this, p, sizeof(*this));
-  }
 
+  void FromBody(const Body& b) {
+    pos = b.pos; rot = b.rot; momentum = b.momentum; ang = b.ang;
+  }
   void ToBody(Body& b) {
     b.pos = pos; b.rot = rot; b.momentum = momentum; b.ang = ang;
-  }
-  void ToArray(double* p) {
-    memcpy(p, this, sizeof(*this));
   }
 };
 
@@ -33,16 +30,61 @@ struct BodyForce {
   dvec3 torque = {0, 0, 0};
 };
 
+struct StateVector {
+  StateVector(size_t n): bodies_(n) {}
+
+  size_t size() const {
+    return bodies_.size();
+  }
+  BodyState& operator[](size_t i) {
+    return bodies_[i];
+  }
+  const BodyState& operator[](size_t i) const {
+    return bodies_[i];
+  }
+
+  // *this = s + h * v;  s point to *this
+  StateVector& AddMul(const StateVector& s, double h, const StateVector& v) {
+    assert(size() == v.size());
+    assert(size() == s.size());
+    for (size_t i = 0; i < size(); ++i) {
+      bodies_[i].pos = s[i].pos + v[i].pos * h;
+      bodies_[i].rot = s[i].rot + v[i].rot * h;
+      bodies_[i].momentum = s[i].momentum + v[i].momentum * h;
+      bodies_[i].ang = s[i].ang + v[i].ang * h;
+    }
+    return *this;
+  }
+
+ private:
+  vector<BodyState> bodies_;
+};
+
+struct Context {
+  vector<BodyForce> external_forces;
+  // Constraint idx -> idx of the first var. #vars is # locked DOFs.
+  vector<int> var_idx;
+  // body_idx*6+f -> coefs of linear combination of vars that is equal
+  // to force #f on the body; f: 0-2 - linear force xyz, 3-5 - torque xyz.
+  DMatrix force_from_vars;
+  // Linear equation system. Vars - forces/torques from constraints,
+  // rows - constraints (second derivative), last column - "b" as in Ax=b.
+  DMatrix equations;
+};
+
 // According to [1], this method has only second order accuracy for rotations.
 // Still it seems to perform somewhat better than MidpointMethod() in my experiments.
 // [1] http://euclid.ucsd.edu/~sbuss/ResearchWeb/accuraterotation/paper.pdf
-void RungeKutta4(valarray<double>& y, double h, function<void(const valarray<double>& y, valarray<double>& yp)> f) {
-  valarray<double> k1(y.size()), k2(y.size()), k3(y.size()), k4(y.size());
+void RungeKutta4(StateVector& y, double h, function<void(const StateVector& y, StateVector& yp)> f) {
+  StateVector k1(y.size()), k2(y.size()), k3(y.size()), k4(y.size()), ty(y.size());
   f(y, k1);
-  f(y + h/2*k1, k2);
-  f(y + h/2*k2, k3);
-  f(y + h*k3, k4);
-  y += h/6*k1 + h/3*k2 + h/3*k3 + h/6*k4;
+  f(ty.AddMul(y, h/2, k1), k2);
+  f(ty.AddMul(y, h/2, k2), k3);
+  f(ty.AddMul(y, h, k3), k4);
+  y.AddMul(y, h/6, k1);
+  y.AddMul(y, h/3, k2);
+  y.AddMul(y, h/3, k3);
+  y.AddMul(y, h/6, k4);
 }//*/
 
 /*
@@ -125,6 +167,10 @@ void EnforceConstraints(Scene& scene) {
     }
   }
 }
+/*
+void ResolveForces(const Scene& scene, Context& context) {
+  
+}*/
 
 } // namespace {
 
@@ -136,28 +182,28 @@ double Scene::GetEnergy() const {
 }
 
 void Scene::PhysicsStep(double dt) {
-  vector<BodyForce> forces(bodies.size());
-  const size_t stride = sizeof(BodyState) / sizeof(double);
-  valarray<double> state_vec(bodies.size() * stride);
+  Context context;
+  context.external_forces.resize(bodies.size());
+  context.var_idx.resize(constraints.size());
+  StateVector state_vec(bodies.size());
   for (size_t i = 0; i < bodies.size(); ++i) {
     Body& body = bodies[i];
     for (const auto& f: body.forces) {
-      forces[i].force += f.second;
-      forces[i].torque += f.first.Cross(f.second);
+      context.external_forces[i].force += f.second;
+      context.external_forces[i].torque += f.first.Cross(f.second);
     }
-    BodyState(body).ToArray(&state_vec[i * stride]);
+    state_vec[i].FromBody(body);
   }
-  auto f = [&](const valarray<double>& y, valarray<double>& yp) {
+  auto f = [&](const StateVector& y, StateVector& yp) {
     for (size_t i = 0; i < bodies.size(); ++i) {
-      Body& body = bodies[i];
-      BodyState s(&y[i * stride]);
-      BodyState p;
+      const Body& body = bodies[i];
+      const BodyState& s = y[i];
+      BodyState& p = yp[i];
       p.pos = s.momentum / body.mass;
       dvec3 av = body.inv_inertia * (s.rot.ToMatrix().Transposed() * s.ang);
       p.rot = s.rot * fquat(0, av.x, av.y, av.z) * .5;
-      p.momentum = forces[i].force;
-      p.ang = forces[i].torque;
-      p.ToArray(&yp[i * stride]);
+      p.momentum = context.external_forces[i].force;
+      p.ang = context.external_forces[i].torque;
     }
   };
   const int steps = 100;
@@ -166,7 +212,7 @@ void Scene::PhysicsStep(double dt) {
   }
   for (size_t i = 0; i < bodies.size(); ++i) {
     Body& body = bodies[i];
-    BodyState(&state_vec[i * stride]).ToBody(body);
+    state_vec[i].ToBody(body);
     body.rot.NormalizeMe();
   }
   EnforceConstraints(*this);
