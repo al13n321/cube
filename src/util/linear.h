@@ -55,6 +55,20 @@ struct TMatrix {
 };
 
 template<typename T>
+std::ostream& operator<<(std::ostream& o, const TMatrix<T>& m) {
+  o << "[";
+  for (size_t i = 0; i < m.n; ++i) {
+    o << '\n';
+    for (size_t j = 0; j < m.m; ++j) {
+      if (j)
+        o << ", ";
+      o << m[i][j];
+    }
+  }
+  return o << "]";
+}
+
+template<typename T>
 bool TMatrix<T>::SolveLinearSystem(T epsilon) {
   assert(m == n+1);
   bool ok = true;

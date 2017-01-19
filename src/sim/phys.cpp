@@ -1,5 +1,6 @@
 #include "sim/scene.h"
 #include "util/linear.h"
+#include "util/print.h"
 #include <valarray>
 #include <cassert>
 #include <iostream>
@@ -29,6 +30,10 @@ struct BodyForce {
   dvec3 force = {0, 0, 0};
   dvec3 torque = {0, 0, 0};
 };
+ostream& operator<<(ostream& o, const BodyForce& f) __attribute__ ((unused));
+ostream& operator<<(ostream& o, const BodyForce& f) {
+  return o << "(F:" << f.force << ",tau:" << f.torque << ")";
+}
 
 struct StateVector {
   StateVector(size_t n): bodies_(n) {}
@@ -66,9 +71,11 @@ struct Context {
   vector<BodyForce> effective_forces;
   // Constraint idx -> idx of the first var. #vars is # locked DOFs.
   vector<int> var_idx;
-  // body_idx*6+f -> coefs of linear combination of vars that is equal
-  // to force #f on the body; f: 0-2 - linear force xyz, 3-5 - torque xyz.
-  DMatrix force_from_vars;
+  // Force and torque on each body represented as linear combination of variables.
+  // [(v+1)*(b*2+f) + i] is the contribution of variable i to force/torque f on body b,
+  // v is number of variables, b is body idx, f is 0 for linear force, 1 for torque,
+  // i is variable index, v for free coefficient (with opposite sign).
+  vector<dvec3> force_from_vars;
   // Linear equation system. Vars - forces/torques from constraints,
   // rows - constraints (second derivative), last column - "b" as in Ax=b.
   DMatrix equations;
@@ -87,9 +94,10 @@ void RungeKutta4(StateVector& y, double h, function<void(const StateVector& y, S
   y.AddMul(y, h/3, k2);
   y.AddMul(y, h/3, k3);
   y.AddMul(y, h/6, k4);
-}//*/
+}
 
-/*
+void MidpointMethod(valarray<double>& y, double h, function<void(const valarray<double>& y, valarray<double>& yp)> f)
+  __attribute__((unused));
 void MidpointMethod(valarray<double>& y, double h, function<void(const valarray<double>& y, valarray<double>& yp)> f) {
   valarray<double> k1(y.size()), k2(y.size());
   f(y, k1);
@@ -97,20 +105,22 @@ void MidpointMethod(valarray<double>& y, double h, function<void(const valarray<
   y += h*k2;
 }//*/
 
-/*
 // If you want to see the difference between first-order and second-order integration,
 // try using Euler() instead of RungeKutta4() (also fewer substeps).
 // Torque-free precession of this single rotating box degrade in a few seconds with Euler():
 // scene.AddBody(MakeBox(dvec3(.2, .1, .3)).MultiplyMass(2700))->ang = dvec3(0,-1.24991,-0.758193);
+void Euler(valarray<double>& y, double h, function<void(const valarray<double>& y, valarray<double>& yp)> f)
+  __attribute__((unused));
 void Euler(valarray<double>& y, double h, function<void(const valarray<double>& y, valarray<double>& yp)> f) {
   valarray<double> k(y.size());
   f(y, k);
   y += h*k;
-}//*/
+}
 
 // Prevent errors from accumulating by coercing the bodies into meeting all constraints,
 // together with their first derivative, in a physically incorrect way. Done after a normal update step.
 void EnforceConstraints(Scene& scene) {
+  return;
   for (const Constraint& c: scene.constraints) {
     Body& b1 = c.body1 == -1 ? fixed_body : scene.bodies[c.body1];
     Body& b2 = scene.bodies[c.body2];
@@ -174,21 +184,21 @@ void EnforceConstraints(Scene& scene) {
 void ResolveForces(Scene& scene, const StateVector& state, Context& context) {
   size_t nvars = context.var_idx.back();
   auto& fv = context.force_from_vars;
-  fv.Resize(scene.bodies.size() * 6, nvars + 1);
-  fv.Fill(0);
+  fv.assign(scene.bodies.size() * 2 * (nvars + 1), dvec3(0, 0, 0));
 
   for (size_t i = 0; i < scene.bodies.size(); ++i) {
-    context.external_forces[i].force.ToArray(fv[i*6] + nvars, fv.Stride());
-    context.external_forces[i].torque.ToArray(fv[i*6 + 3] + nvars, fv.Stride());
+    fv[(i*2 + 0)*(nvars+1) + nvars] = context.external_forces[i].force;
+    fv[(i*2 + 1)*(nvars+1) + nvars] = context.external_forces[i].torque;
   }
 
-  auto mat_to_vars = [&](const dmat3& m, size_t fi, size_t var, Constraint::dof_t dofs) {
-    for (size_t i = 0; i < 3; ++i) {
-      size_t v = var;
-      for (size_t j = 0; j < 3; ++j) {
-        if (dofs & ((Constraint::DOF::PX | Constraint::DOF::RX) << j))
-          fv[fi + i][v++] += m[i][j];
-      }
+  auto get_mask = [](Constraint::dof_t dofs) {
+    return (uint8_t)((dofs / Constraint::DOF::PX) | (dofs / Constraint::DOF::RX));
+  };
+  auto mat_to_vars = [&](const dmat3& m, size_t i, uint8_t msk) {
+    for (size_t j = 0; j < 3; ++j) {
+      if (!(msk & (1 << j)))
+        continue;
+      fv[i++] += m.Column(j);
     }
   };
   for (size_t i = 0; i < scene.constraints.size(); ++i) {
@@ -196,38 +206,86 @@ void ResolveForces(Scene& scene, const StateVector& state, Context& context) {
     const BodyState& s1 = state[c.body1];
     const BodyState& s2 = state[c.body2];
     size_t var = context.var_idx[i];
-    auto pos_dof = c.lock & Constraint::DOF::POS;
+    auto pos_dof = get_mask(c.lock & Constraint::DOF::POS);
     if (pos_dof) {
       dmat3 m = (s1.rot * c.rot1.Conjugate()).ToMatrix();
-      mat_to_vars(-m, c.body1*6, var, pos_dof);
-      mat_to_vars(m, c.body2*6, var, pos_dof);
+      mat_to_vars(-m, c.body1*2*(nvars+1) + var, pos_dof);
+      mat_to_vars(m, c.body2*2*(nvars+1) + var, pos_dof);
       // Body torque depends on constraint force too (not only on constraint torque).
       m = -s1.rot.ToMatrix() * c.pos1.Skew() * c.rot1.Conjugate().ToMatrix();
-      mat_to_vars(m, c.body1*6 + 3, var, pos_dof);
+      mat_to_vars(m, (c.body1*2 + 1)*(nvars+1) + var, pos_dof);
       m = (s1.rot.Transform(c.pos1) + s1.pos - s2.pos).Skew() * (s1.rot * c.rot1.Conjugate()).ToMatrix();
-      mat_to_vars(m, c.body2*6 + 3, var, pos_dof);
+      mat_to_vars(m, (c.body2*2 + 1)*(nvars+1) + var, pos_dof);
       var += __builtin_popcount(pos_dof);
     }
     if (c.lock & Constraint::DOF::ROT) {
+      // TODO: dependence on constraint torque.
     }
   }
 
   context.equations.Resize(nvars, nvars + 1);
-  context.equations.FillIdentity();
-  // TODO: Fill in the equations.
+  context.equations.Fill(0);
+  //*
+  auto mat_to_equations = [&](const dmat3& m, size_t ei, size_t fi, Constraint::dof_t msk) {
+    for (size_t j = 0; j <= nvars; ++j) {
+      dvec3 v = m * fv[fi + j];
+      v.AddToArrayMasked(context.equations[ei] + j, msk, context.equations.Stride());
+    }
+  };
+  for (size_t i = 0; i < scene.constraints.size(); ++i) {
+    const Constraint& c = scene.constraints[i];
+    const Body& b1 = scene.bodies[c.body1];
+    const Body& b2 = scene.bodies[c.body2];
+    const BodyState& s1 = state[c.body1];
+    const BodyState& s2 = state[c.body2];
+    size_t eq = context.var_idx[i];
+    dvec3 av1 = b1.inv_inertia * s1.rot.Untransform(s1.ang);
+    dvec3 av2 = b1.inv_inertia * s1.rot.Untransform(s1.ang);
+    auto pos_dof = get_mask(c.lock & Constraint::DOF::POS);
+    if (pos_dof) {
+      dvec3 add = c.rot1.Transform(-av1.Cross((s1.rot.Conjugate() * s2.rot).Transform(av2.Cross(c.pos2))) + // centrifugal
+                                   (b1.inv_inertia * av1.Cross(s1.rot.Untransform(s1.ang))).Cross(c.pos1) + // torque-free precession
+                                   // TODO: more rotational terms.
+                                   -av1.Cross(s1.rot.Untransform(s2.momentum/b2.mass - s1.momentum/b1.mass))
+                                   );
+      (-add).AddToArrayMasked(context.equations[eq] + nvars, pos_dof, context.equations.Stride());
+      //dvec3 v = c.rot1.Transform(s1.rot.Untransform(s2.momentum/b2.mass - s1.momentum/b1.mass));
+      dmat3 cf2 = (c.rot1 * s1.rot.Conjugate()).ToMatrix();
+      dmat3 cf1 = cf2 / -b1.mass;
+      cf2 /= b2.mass;
+      mat_to_equations(cf1, eq, c.body1*2*(nvars+1), pos_dof);
+      mat_to_equations(cf2, eq, c.body2*2*(nvars+1), pos_dof);
+      eq += __builtin_popcount(pos_dof);
+    }
+    // TODO: rotation constraints.
+  }
+  //*/
 
+  auto eqs0 = context.equations; auto fv0 = fv; // asdqwe
   bool ok = context.equations.SolveLinearSystem();
   ++(ok ? scene.force_resolution_success : scene.force_resolution_failed);
 
-  for (size_t i = 0; i < fv.n; ++i) {
+  for (size_t i = 0; i < fv.size(); i += nvars+1) {
     for (size_t j = 0; j < nvars; ++j)
-      fv[i][nvars] += fv[i][j] * context.equations[j][nvars];
+      fv[i + nvars] += fv[i + j] * context.equations[j][nvars];
   }
 
   context.effective_forces.resize(scene.bodies.size());
   for (size_t i = 0; i < scene.bodies.size(); ++i) {
-    context.effective_forces[i].force.FromArray(fv[i*6] + nvars, fv.Stride());
-    context.effective_forces[i].torque.FromArray(fv[i*6+3] + nvars, fv.Stride());
+    context.effective_forces[i].force = fv[i*2*(nvars+1) + nvars];
+    context.effective_forces[i].torque = fv[(i*2+1)*(nvars+1) + nvars];
+  }
+
+  for (size_t i0 = 0; i0 < scene.bodies.size(); ++i0) {
+    if (context.external_forces[i0].force.Length() + context.external_forces[i0].torque.Length() > 0) {
+      cerr << print(context.external_forces) << endl;
+      cerr << print(fv0) << endl;
+      cerr << print(fv) << endl;
+      cerr << eqs0 << endl;
+      cerr << context.equations << endl;
+      cerr << print(context.effective_forces) << endl;
+      exit(0);
+    }
   }
 }
 

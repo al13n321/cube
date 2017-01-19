@@ -105,14 +105,13 @@ int main() {
       body->rot = dquat(1, 0, 0, 0);
       body2->rot = dquat(1, 0, 0, 0);
 
-      body2->pos = dvec3(.07, 0, .07);
-      //body2->pos = dvec3(1e-3, 0, 0);
+      //body2->pos = dvec3(.07, 0, .07);
       //body->ang = dvec3(0,-0.00711448,0);
     };
 
     reset();
 
-    scene.AddConstraint(body->idx, body2->idx, dvec3(0, 0, 0), dquat(1, 0, 0, 0), Constraint::DOF::POS | Constraint::DOF::ROT);
+    scene.AddConstraint(body->idx, body2->idx, dvec3(0, 0, 0), dquat(1, 0, 0, 0), Constraint::DOF::POS);
 
     body->forces.emplace_back(dvec3(-1, 0, 0), dvec3(0, 0, 0)); auto& forcenx = body->forces.back();
     body->forces.emplace_back(dvec3(+1, 0, 0), dvec3(0, 0, 0)); auto& forcepx = body->forces.back();
