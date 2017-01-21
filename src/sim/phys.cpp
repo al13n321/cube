@@ -120,7 +120,6 @@ void Euler(valarray<double>& y, double h, function<void(const valarray<double>& 
 // Prevent errors from accumulating by coercing the bodies into meeting all constraints,
 // together with their first derivative, in a physically incorrect way. Done after a normal update step.
 void EnforceConstraints(Scene& scene) {
-  return;
   for (const Constraint& c: scene.constraints) {
     Body& b1 = c.body1 == -1 ? fixed_body : scene.bodies[c.body1];
     Body& b2 = scene.bodies[c.body2];
@@ -167,14 +166,14 @@ void EnforceConstraints(Scene& scene) {
 
     // Linear velocity.
     {
-      dvec3 rot_vel =
-        b1.rot.Untransform(b2.rot.Transform((b2.inv_inertia *
-                                             b2.rot.Untransform(b2.ang)).Cross(c.pos2))) -
-        (b1.inv_inertia * b1.rot.Untransform(b1.ang)).Cross(c.pos1);
-      dvec3 v = c.rot1.Transform(rot_vel +
-                                 b1.rot.Untransform(b2.momentum/b2.mass - b1.momentum/b1.mass));
+      dvec3 av1 = b1.inv_inertia * b1.rot.Untransform(b1.ang);
+      dvec3 av2 = b2.inv_inertia * b2.rot.Untransform(b2.ang);
+      dvec3 v0 =
+        -av1.Cross(b1.rot.Untransform(b2.rot.Transform(c.pos2)+b2.pos-b1.pos)) +
+        b1.rot.Untransform(b2.rot.Transform(av2.Cross(c.pos2)) - b1.momentum/b1.mass);
+      dvec3 v = c.rot1.Transform(v0 + b1.rot.Untransform(b2.momentum/b2.mass));
       double l = clear_vec(v, Constraint::DOF::POS);
-      b2.momentum = (b1.rot.Transform(c.rot1.Untransform(v) - rot_vel) + b1.momentum/b1.mass) * b2.mass;
+      b2.momentum = b1.rot.Transform((c.rot1.Untransform(v) - v0)) * b2.mass;
       scene.leaked_velocity += sqrt(l);
     }
   }
@@ -187,8 +186,8 @@ void ResolveForces(Scene& scene, const StateVector& state, Context& context) {
   fv.assign(scene.bodies.size() * 2 * (nvars + 1), dvec3(0, 0, 0));
 
   for (size_t i = 0; i < scene.bodies.size(); ++i) {
-    fv[(i*2 + 0)*(nvars+1) + nvars] = context.external_forces[i].force;
-    fv[(i*2 + 1)*(nvars+1) + nvars] = context.external_forces[i].torque;
+    fv[(i*2 + 0)*(nvars+1) + nvars] = -context.external_forces[i].force;
+    fv[(i*2 + 1)*(nvars+1) + nvars] = -context.external_forces[i].torque;
   }
 
   auto get_mask = [](Constraint::dof_t dofs) {
@@ -225,7 +224,7 @@ void ResolveForces(Scene& scene, const StateVector& state, Context& context) {
 
   context.equations.Resize(nvars, nvars + 1);
   context.equations.Fill(0);
-  //*
+
   auto mat_to_equations = [&](const dmat3& m, size_t ei, size_t fi, Constraint::dof_t msk) {
     for (size_t j = 0; j <= nvars; ++j) {
       dvec3 v = m * fv[fi + j];
@@ -243,49 +242,41 @@ void ResolveForces(Scene& scene, const StateVector& state, Context& context) {
     dvec3 av2 = b1.inv_inertia * s1.rot.Untransform(s1.ang);
     auto pos_dof = get_mask(c.lock & Constraint::DOF::POS);
     if (pos_dof) {
-      dvec3 add = c.rot1.Transform(-av1.Cross((s1.rot.Conjugate() * s2.rot).Transform(av2.Cross(c.pos2))) + // centrifugal
-                                   (b1.inv_inertia * av1.Cross(s1.rot.Untransform(s1.ang))).Cross(c.pos1) + // torque-free precession
-                                   // TODO: more rotational terms.
-                                   -av1.Cross(s1.rot.Untransform(s2.momentum/b2.mass - s1.momentum/b1.mass))
+      dvec3 add = c.rot1.Transform((b1.inv_inertia*av1.Cross(s1.rot.Untransform(s1.ang)))
+                                   .Cross(s1.rot.Untransform(s2.rot.Transform(c.pos2)+s2.pos-s1.pos)) + // precession 1
+                                   av1.Cross(av1.Cross(s1.rot.Untransform(s2.rot.Transform(c.pos2)+s2.pos-s1.pos)) + // centrifugal 1
+                                             -2.*s1.rot.Untransform(s2.rot.Transform(av2.Cross(c.pos2)) +
+                                                                    s2.momentum/b2.mass - s1.momentum/b1.mass)) + // Coriolis
+                                   s1.rot.Untransform(s2.rot.Transform(av2.Cross(av2.Cross(c.pos2)) + // centrifugal 2
+                                                                       c.pos2.Cross(b2.inv_inertia*av2.Cross(s2.rot.Untransform(s2.ang))))) // precession 2
                                    );
       (-add).AddToArrayMasked(context.equations[eq] + nvars, pos_dof, context.equations.Stride());
-      //dvec3 v = c.rot1.Transform(s1.rot.Untransform(s2.momentum/b2.mass - s1.momentum/b1.mass));
       dmat3 cf2 = (c.rot1 * s1.rot.Conjugate()).ToMatrix();
       dmat3 cf1 = cf2 / -b1.mass;
       cf2 /= b2.mass;
       mat_to_equations(cf1, eq, c.body1*2*(nvars+1), pos_dof);
       mat_to_equations(cf2, eq, c.body2*2*(nvars+1), pos_dof);
+      dmat3 ct1 = c.rot1.ToMatrix() * (s1.rot.Untransform(s2.rot.Transform(c.pos2)+s2.pos-s1.pos)).Skew() * b1.inv_inertia * s1.rot.Conjugate().ToMatrix();
+      dmat3 ct2 = -(c.rot1*s1.rot.Conjugate()*s2.rot).ToMatrix() * c.pos2.Skew() * b2.inv_inertia * s2.rot.Conjugate().ToMatrix();
+      mat_to_equations(ct1, eq, (c.body1*2+1)*(nvars+1), pos_dof);
+      mat_to_equations(ct2, eq, (c.body2*2+1)*(nvars+1), pos_dof);
       eq += __builtin_popcount(pos_dof);
     }
     // TODO: rotation constraints.
   }
-  //*/
 
-  auto eqs0 = context.equations; auto fv0 = fv; // asdqwe
   bool ok = context.equations.SolveLinearSystem();
   ++(ok ? scene.force_resolution_success : scene.force_resolution_failed);
 
   for (size_t i = 0; i < fv.size(); i += nvars+1) {
     for (size_t j = 0; j < nvars; ++j)
-      fv[i + nvars] += fv[i + j] * context.equations[j][nvars];
+      fv[i + nvars] -= fv[i + j] * context.equations[j][nvars];
   }
 
   context.effective_forces.resize(scene.bodies.size());
   for (size_t i = 0; i < scene.bodies.size(); ++i) {
-    context.effective_forces[i].force = fv[i*2*(nvars+1) + nvars];
-    context.effective_forces[i].torque = fv[(i*2+1)*(nvars+1) + nvars];
-  }
-
-  for (size_t i0 = 0; i0 < scene.bodies.size(); ++i0) {
-    if (context.external_forces[i0].force.Length() + context.external_forces[i0].torque.Length() > 0) {
-      cerr << print(context.external_forces) << endl;
-      cerr << print(fv0) << endl;
-      cerr << print(fv) << endl;
-      cerr << eqs0 << endl;
-      cerr << context.equations << endl;
-      cerr << print(context.effective_forces) << endl;
-      exit(0);
-    }
+    context.effective_forces[i].force = -fv[i*2*(nvars+1) + nvars];
+    context.effective_forces[i].torque = -fv[(i*2+1)*(nvars+1) + nvars];
   }
 }
 

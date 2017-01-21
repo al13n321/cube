@@ -105,7 +105,8 @@ int main() {
       body->rot = dquat(1, 0, 0, 0);
       body2->rot = dquat(1, 0, 0, 0);
 
-      //body2->pos = dvec3(.07, 0, .07);
+      body2->pos = dvec3(.07, 0, 0);
+      //body2->pos = dvec3(0, 0, 0);
       //body->ang = dvec3(0,-0.00711448,0);
     };
 

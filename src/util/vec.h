@@ -72,9 +72,9 @@ struct tvec3 {
 
   // Cross product matrix: a.Cross(b) = a.Skew() * b = -b.Skew() * a.
   tmat3<ftype> Skew() const {
-    return tmat3<ftype>(0, -1, 1,
-                        1, 0, -1,
-                        -1, 1, 0);
+    return tmat3<ftype>(0, -z, y,
+                        z, 0, -x,
+                        -y, x, 0);
   }
   
   ftype LengthSquare() const { return Dot(*this); }
@@ -141,6 +141,11 @@ struct tvec3 {
     if (msk & 4) *p += z;
   }
 };
+
+template<typename ftype>
+tvec3<ftype> operator*(ftype c, const tvec3<ftype>& v) {
+  return v*c;
+}
 
 template<typename ftype>
 struct tvec4 {
