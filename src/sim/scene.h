@@ -51,8 +51,8 @@ class Body {
   // Identifier.
   int idx; // index in list of all entities
 
-  // Physical properties.
-  double mass = 0;
+  // Physical properties. Mass is stored as reciprocal to allow infinite mass.
+  double inv_mass = 0; // 1/mass
   dmat3 inv_inertia = dmat3::Zero(); // inverse of inertia tensor
 
   // Physical state.
@@ -125,6 +125,11 @@ class Scene {
   // pos1 and rot1 are calculated from current positions and orientations of the two bodies.
   Constraint* AddConstraint(int body1, int body2, dvec3 pos2, dquat rot2, Constraint::dof_t lock);
 
+  // If constraints are not satisfied (by either position, rotation, velocity or angular velocity),
+  // updates them (in some physically incorrect way) to satisfy constraints.
+  // Call if you changed velocities manually or if you called AddConstraint() for moving bodies.
+  void EnforceConstraints();
+
   void Render();
   void PhysicsStep(double dt);
 
@@ -132,6 +137,7 @@ class Scene {
 
   std::deque<Body> bodies;
   std::deque<Constraint> constraints;
+  dvec3 gravity = dvec3(0, 0, 0);
 
   Camera camera;
   fvec3 light_vec = fvec3(-3, 2, 1).Normalized(); // direction from which the light is coming
