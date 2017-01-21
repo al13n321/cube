@@ -147,7 +147,7 @@ void EnforceConstraints(Scene& scene) {
 
     // Translation.
     {
-      dvec3 p = c.rot1.Transform(b1.rot.Untransform(b2.rot.Transform(c.pos2) + b2.pos - b1.pos) - c.pos1);
+      dvec3 p = c.rot1.Transform(b1.rot.Untransform(b2.rot.Transform(c.pos2) + b2.pos - b1.pos) - c.pos1); // (2)
       double l = clear_vec(p, Constraint::DOF::POS);
       b2.pos = b1.rot.Transform(c.rot1.Untransform(p) + c.pos1) + b1.pos - b2.rot.Transform(c.pos2);
       scene.leaked_translation += sqrt(l);
@@ -156,7 +156,7 @@ void EnforceConstraints(Scene& scene) {
     // Angular velocity.
     {
       dvec3 w = c.rot1.Transform(b1.rot.Untransform(b2.rot.Transform(b2.inv_inertia * b2.rot.Untransform(b2.ang))) -
-                                 b1.inv_inertia * b1.rot.Untransform(b1.ang));
+                                 b1.inv_inertia * b1.rot.Untransform(b1.ang)); // (1)
       double l = clear_vec(w, Constraint::DOF::ROT);
       b2.ang = b2.rot.Transform(b2.inv_inertia.Inverse() *
                                 b2.rot.Untransform(b1.rot.Transform(c.rot1.Untransform(w) +
@@ -171,6 +171,7 @@ void EnforceConstraints(Scene& scene) {
       dvec3 v0 =
         -av1.Cross(b1.rot.Untransform(b2.rot.Transform(c.pos2)+b2.pos-b1.pos)) +
         b1.rot.Untransform(b2.rot.Transform(av2.Cross(c.pos2)) - b1.momentum/b1.mass);
+      // Derivative of (2).
       dvec3 v = c.rot1.Transform(v0 + b1.rot.Untransform(b2.momentum/b2.mass));
       double l = clear_vec(v, Constraint::DOF::POS);
       b2.momentum = b1.rot.Transform((c.rot1.Untransform(v) - v0)) * b2.mass;
@@ -205,20 +206,21 @@ void ResolveForces(Scene& scene, const StateVector& state, Context& context) {
     const BodyState& s1 = state[c.body1];
     const BodyState& s2 = state[c.body2];
     size_t var = context.var_idx[i];
-    auto pos_dof = get_mask(c.lock & Constraint::DOF::POS);
-    if (pos_dof) {
-      dmat3 m = (s1.rot * c.rot1.Conjugate()).ToMatrix();
-      mat_to_vars(-m, c.body1*2*(nvars+1) + var, pos_dof);
-      mat_to_vars(m, c.body2*2*(nvars+1) + var, pos_dof);
+    const dmat3 c2w = (s1.rot * c.rot1.Conjugate()).ToMatrix();
+    if (auto pos_dof = get_mask(c.lock & Constraint::DOF::POS)) {
+      mat_to_vars(-c2w, c.body1*2*(nvars+1) + var, pos_dof);
+      mat_to_vars(c2w, c.body2*2*(nvars+1) + var, pos_dof);
       // Body torque depends on constraint force too (not only on constraint torque).
-      m = -s1.rot.ToMatrix() * c.pos1.Skew() * c.rot1.Conjugate().ToMatrix();
+      dmat3 m = -s1.rot.ToMatrix() * c.pos1.Skew() * c.rot1.Conjugate().ToMatrix();
       mat_to_vars(m, (c.body1*2 + 1)*(nvars+1) + var, pos_dof);
       m = (s1.rot.Transform(c.pos1) + s1.pos - s2.pos).Skew() * (s1.rot * c.rot1.Conjugate()).ToMatrix();
       mat_to_vars(m, (c.body2*2 + 1)*(nvars+1) + var, pos_dof);
       var += __builtin_popcount(pos_dof);
     }
-    if (c.lock & Constraint::DOF::ROT) {
-      // TODO: dependence on constraint torque.
+    if (auto rot_dof = get_mask(c.lock & Constraint::DOF::ROT)) {
+      mat_to_vars(-c2w, (c.body1*2+1)*(nvars+1) + var, rot_dof);
+      mat_to_vars(c2w, (c.body2*2+1)*(nvars+1) + var, rot_dof);
+      var += __builtin_popcount(rot_dof);
     }
   }
 
@@ -240,8 +242,8 @@ void ResolveForces(Scene& scene, const StateVector& state, Context& context) {
     size_t eq = context.var_idx[i];
     dvec3 av1 = b1.inv_inertia * s1.rot.Untransform(s1.ang);
     dvec3 av2 = b1.inv_inertia * s1.rot.Untransform(s1.ang);
-    auto pos_dof = get_mask(c.lock & Constraint::DOF::POS);
-    if (pos_dof) {
+    if (auto pos_dof = get_mask(c.lock & Constraint::DOF::POS)) {
+      // Second derivative of (2): add + cf1*force1 + cf2*force2 + ct1*torque1 + ct2*torque2.
       dvec3 add = c.rot1.Transform((b1.inv_inertia*av1.Cross(s1.rot.Untransform(s1.ang)))
                                    .Cross(s1.rot.Untransform(s2.rot.Transform(c.pos2)+s2.pos-s1.pos)) + // precession 1
                                    av1.Cross(av1.Cross(s1.rot.Untransform(s2.rot.Transform(c.pos2)+s2.pos-s1.pos)) + // centrifugal 1
@@ -262,7 +264,18 @@ void ResolveForces(Scene& scene, const StateVector& state, Context& context) {
       mat_to_equations(ct2, eq, (c.body2*2+1)*(nvars+1), pos_dof);
       eq += __builtin_popcount(pos_dof);
     }
-    // TODO: rotation constraints.
+    if (auto rot_dof = get_mask(c.lock & Constraint::DOF::ROT)) {
+      // Derivative of (1): add + ct1*torque1 + ct2*torque2.
+      dvec3 add = c.rot1.Transform(-av1.Cross(s1.rot.Untransform(s2.rot.Transform(av2)))+
+                                   -s1.rot.Untransform(s2.rot.Transform(b2.inv_inertia*av2.Cross(s2.rot.Untransform(s2.ang))))+
+                                   b1.inv_inertia*av1.Cross(s1.rot.Untransform(s1.ang)));
+      (-add).AddToArrayMasked(context.equations[eq] + nvars, rot_dof, context.equations.Stride());
+      dmat3 ct1 = -c.rot1.ToMatrix() * b1.inv_inertia * s1.rot.Conjugate().ToMatrix();
+      dmat3 ct2 = (c.rot1 * s1.rot.Conjugate() * s2.rot).ToMatrix() * b2.inv_inertia * s2.rot.Conjugate().ToMatrix();
+      mat_to_equations(ct1, eq, (c.body1*2+1)*(nvars+1), rot_dof);
+      mat_to_equations(ct2, eq, (c.body2*2+1)*(nvars+1), rot_dof);
+      eq += __builtin_popcount(rot_dof);
+    }
   }
 
   bool ok = context.equations.SolveLinearSystem();
