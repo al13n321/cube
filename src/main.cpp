@@ -49,7 +49,7 @@ static void UpdateFPS() {
 }
 
 // Order of keys is: forward, backwards, left, right, up, down (-z, +z, -x, +x, +y, -y), ALL CAPS.
-dvec3 SixDofInput(glfw::Window& w, const char* keys) {
+dvec3 ThreeDofInput(glfw::Window& w, const char* keys) {
   dvec3 r = {0, 0, 0};
   if (w.IsKeyPressed(keys[2]))
     r.x -= 1;
@@ -87,41 +87,30 @@ int main() {
 
     Scene scene;
 
-    vector<Body*> chain;
-    const double thickness = .1;
-    const double length = .5;
-    const double gap = .1;
-    const double topy = 3;
-    for (int i = 0; i < 6; ++i) {
-      Body* b = scene.AddBody(MakeBox(dvec3(thickness, length, thickness)).MultiplyMass(2700));
-      chain.push_back(b);
-    }
+    //Body* table = scene.AddBody(MakeBox(dvec3(3, .1, 3)));
+    //table->pos.y = -.05;
+    //scene.AddConstraint(-1, table->idx, dvec3(0, 0, 0), dquat(1, 0, 0, 0), Constraint::DOF::POS | Constraint::DOF::ROT);
 
-    auto stop_movement = [&] {
-      for (Body* b: chain) {
-        b->momentum = dvec3(0, 0, 0);
-        b->ang = dvec3(0, 0, 0);
-      }
-    };
+    Body* box = scene.AddBody(MakeBox(dvec3(.06,.06,.06)).MultiplyMass(1000));
+    scene.AddConstraint(-1, box->idx, dvec3(-.03, -.03, 0), dquat(1, 0, 0, 0), Constraint::DOF::POS | Constraint::DOF::RX | Constraint::DOF::RY);
+
     auto reset = [&] {
-      stop_movement();
-      for (int i = 0; i < (int)chain.size(); ++i) {
-        Body* b = chain[i];
-        b->pos = dvec3(0, topy - (length + gap)*(i + .5), 0);
-        b->rot = dquat(1, 0, 0, 0);
-      }
-    };
+                   box->pos = dvec3(0, .03, 0);
+                   box->rot = dquat(1, 0, 0, 0);
+                   box->momentum = dvec3(0, 0, 0);
+                   box->ang = dvec3(0, 0, 0);
+                 };
 
     reset();
 
-    for (int i = 0; i < (int)chain.size(); ++i)
-      scene.AddConstraint(i ? chain[i-1]->idx : -1, chain[i]->idx, dvec3(0, (length + gap)*.5, 0), dquat(1, 0, 0, 0), Constraint::DOF::POS);
-    scene.gravity = dvec3(0, -9.8, 0);
+    //scene.gravity = dvec3(0, -9.8, 0);
+    scene.gravity = dvec3(0.1, 0, 0);
 
-    chain.back()->forces.emplace_back(); auto& force = chain.back()->forces.back();
+    box->forces.emplace_back();
+    auto& force = box->forces.back();
 
-    scene.camera.pos = fvec3(-2, 2, 2.5);
-    scene.camera.LookAt(chain[chain.size()/2]->pos);
+    scene.camera.pos = fvec3(-.1, .12, .15);
+    scene.camera.LookAt(box->pos);
 
     Stopwatch frame_stopwatch;
     while (!window->ShouldClose()) {
@@ -132,12 +121,11 @@ int main() {
 
       if (window->IsKeyPressed(GLFW_KEY_R))
         reset();
-      if (window->IsKeyPressed(GLFW_KEY_V))
-        stop_movement();
 
-      dvec3 in = SixDofInput(*window, "IKJLUM") * 1e2;
-      force.first = chain.back()->rot.Transform(dvec3(0, -(length + gap)*.5, 0)) + chain.back()->pos;
-      force.second = in;
+      dvec3 in = ThreeDofInput(*window, "IKJLUM");
+      force.first = box->pos;
+      force.second = in * 2.2;
+      //scene.gravity = dvec3(0, 0, 0) + in*2.2;
 
       scene.PhysicsStep(dt);
 

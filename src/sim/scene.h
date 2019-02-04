@@ -76,7 +76,7 @@ class Body {
 // (I don't know how much better yet. body2 is slightly moved in non-physical ways to compensate for numerical errors.)
 struct Constraint {
   using dof_t = uint8_t;
-  
+
   enum DOF: dof_t {
     PX = 1,
     PY = 2,
