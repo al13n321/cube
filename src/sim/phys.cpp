@@ -57,7 +57,7 @@ struct StateVector {
     return bodies_[i];
   }
 
-  // *this = s + h * v;  s point to *this
+  // *this = s + h * v;  s is allowed to point to *this
   StateVector& AddMul(const StateVector& s, double h, const StateVector& v) {
     assert(size() == v.size());
     assert(size() == s.size());
@@ -91,8 +91,10 @@ struct Context {
 };
 
 // According to [1], this method has only second order accuracy for rotations.
-// Still it seems to perform somewhat better than MidpointMethod() in my experiments.
+// Still, it seems to perform somewhat better than MidpointMethod() in my experiments.
 // [1] http://euclid.ucsd.edu/~sbuss/ResearchWeb/accuraterotation/paper.pdf
+void RungeKutta4(StateVector& y, double h, function<void(const StateVector& y, StateVector& yp)> f)
+  __attribute__((unused));
 void RungeKutta4(StateVector& y, double h, function<void(const StateVector& y, StateVector& yp)> f) {
   StateVector k1(y.size()), k2(y.size()), k3(y.size()), k4(y.size()), ty(y.size());
   f(y, k1);
@@ -116,14 +118,14 @@ void MidpointMethod(valarray<double>& y, double h, function<void(const valarray<
 
 // If you want to see the difference between first-order and second-order integration,
 // try using Euler() instead of RungeKutta4() (also fewer substeps).
-// Torque-free precession of this single rotating box degrade in a few seconds with Euler():
+// Torque-free precession of this single rotating box degrades in a few seconds with Euler():
 // scene.AddBody(MakeBox(dvec3(.2, .1, .3)).MultiplyMass(2700))->ang = dvec3(0,-1.24991,-0.758193);
-void Euler(valarray<double>& y, double h, function<void(const valarray<double>& y, valarray<double>& yp)> f)
+void Euler(StateVector& y, double h, function<void(const StateVector& y, StateVector& yp)> f)
   __attribute__((unused));
-void Euler(valarray<double>& y, double h, function<void(const valarray<double>& y, valarray<double>& yp)> f) {
-  valarray<double> k(y.size());
+void Euler(StateVector& y, double h, function<void(const StateVector& y, StateVector& yp)> f) {
+  StateVector k(y.size());
   f(y, k);
-  y += h*k;
+  y.AddMul(y, h, k);
 }
 
 // Fills context.effective_forces.
@@ -313,7 +315,8 @@ void Scene::EnforceConstraints() {
 double Scene::GetEnergy() const {
   double r = 0;
   for (const Body& b: bodies) {
-    r += .5 * (b.momentum.LengthSquare() * b.inv_mass + b.ang.Dot(b.rot.Transform(b.inv_inertia * b.rot.Untransform(b.ang))));
+    dvec3 ang_in_body = b.rot.Untransform(b.ang);
+    r += .5 * (b.momentum.LengthSquare() * b.inv_mass + ang_in_body.Dot(b.inv_inertia * ang_in_body));
     r -= b.pos.Dot(gravity) / b.inv_mass;
   }
   return r;
@@ -353,6 +356,7 @@ void Scene::PhysicsStep(double dt) {
   const int steps = 100;
   for (int i = 0; i < steps; ++i) {
     RungeKutta4(state_vec, dt / steps, f);
+    //Euler(state_vec, dt / steps, f);
   }
   for (size_t i = 0; i < bodies.size(); ++i) {
     Body& body = bodies[i];

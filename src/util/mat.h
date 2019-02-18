@@ -137,8 +137,10 @@ template<typename T>
 std::ostream& operator<<(std::ostream& o, const tmat3<T>& m) {
   o << '(';
   for (int i = 0; i < 9; ++i) {
-    if (i)
-      o << ',';
+    if (i) {
+      if (i%3) o << ',';
+      else o << ';';
+    }
     o << m.m[i];
   }
   return o << ')';

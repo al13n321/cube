@@ -92,10 +92,9 @@ int main() {
     //scene.AddConstraint(-1, table->idx, dvec3(0, 0, 0), dquat(1, 0, 0, 0), Constraint::DOF::POS | Constraint::DOF::ROT);
 
     Body* box = scene.AddBody(MakeBox(dvec3(.06,.06,.06)).MultiplyMass(1000));
-    scene.AddConstraint(-1, box->idx, dvec3(-.03, -.03, 0), dquat(1, 0, 0, 0), Constraint::DOF::POS | Constraint::DOF::RX | Constraint::DOF::RY);
 
     auto reset = [&] {
-                   box->pos = dvec3(0, .03, 0);
+                   box->pos = dvec3(.03, .03, 0);
                    box->rot = dquat(1, 0, 0, 0);
                    box->momentum = dvec3(0, 0, 0);
                    box->ang = dvec3(0, 0, 0);
@@ -103,8 +102,9 @@ int main() {
 
     reset();
 
-    //scene.gravity = dvec3(0, -9.8, 0);
-    scene.gravity = dvec3(0.1, 0, 0);
+    scene.AddConstraint(-1, box->idx, dvec3(-.03, -.03, -.03), dquat(1, 0, 0, 0), Constraint::DOF::POS | Constraint::DOF::RX | Constraint::DOF::RY);
+
+    scene.gravity = dvec3(0, -9.8, 0);
 
     box->forces.emplace_back();
     auto& force = box->forces.back();
@@ -125,12 +125,12 @@ int main() {
       dvec3 in = ThreeDofInput(*window, "IKJLUM");
       force.first = box->pos;
       force.second = in * 2.2;
-      //scene.gravity = dvec3(0, 0, 0) + in*2.2;
 
       scene.PhysicsStep(dt);
 
       if (frame_idx % 120 == 0) {
-        cerr << "energy: " << scene.GetEnergy()
+        double e = scene.GetEnergy();
+        cerr << "energy: " << e
              << "; leaked:  x: " << scene.leaked_translation << ", r: " << scene.leaked_rotation
              << ", v: " << scene.leaked_velocity << ", w: " << scene.leaked_angular_velocity
              << "  res ok: " << scene.force_resolution_success << " fail: " << scene.force_resolution_failed << endl;
